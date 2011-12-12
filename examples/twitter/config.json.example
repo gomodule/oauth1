@@ -1,0 +1,6 @@
+{
+    "Credentials": {
+        "Token":"<insert client token here>",
+        "Secret":"<insert client secret here>"
+    }
+}
