@@ -77,7 +77,7 @@ func addCookie(w http.ResponseWriter, name string, data interface{}, maxAge time
 		c.Value = base64.URLEncoding.EncodeToString(b.Bytes())
 	}
 	if maxAge != 0 {
-		c.MaxAge = int(maxAge.Seconds())
+		c.MaxAge = int(maxAge / time.Second)
 		c.Expires = time.Now().Add(maxAge)
 	}
 	http.SetCookie(w, &c)
@@ -141,7 +141,7 @@ func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error getting temp token secret from cookie, "+err.Error(), 500)
 		return
 	}
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, &tempCred, r.Form.Get("oauth_verifier"))
+	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, &tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
