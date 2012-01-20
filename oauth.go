@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -156,7 +157,7 @@ func signature(clientCredentials *Credentials, credentials *Credentials, method,
 		key.Write(encode(credentials.Secret, false))
 	}
 
-	h := hmac.NewSHA1(key.Bytes())
+	h := hmac.New(sha1.New, key.Bytes())
 	writeBaseString(h, method, urlStr, params)
 	sum := h.Sum(nil)
 
