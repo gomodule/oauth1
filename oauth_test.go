@@ -63,6 +63,37 @@ var signatureTests = []struct {
 		Credentials{"dpf43f3++p+#2l4k3l03", "kd9@4h%%4f93k423kf44"},
 		Credentials{"nnch734d(0)0sl2jdk", "pfkkd#hi9_sl-3r=4s00"},
 		"tTFyqivhutHiglPvmyilZlHm5Uk="},
+	{
+		"GET",
+		"http://EXAMPLE.COM:80/Space%20Craft",
+		url.Values{
+			"oauth_consumer_key":     {"abcd"},
+			"oauth_token":            {"ijkl"},
+			"oauth_nonce":            {"Ix4U1Ei3RFL"},
+			"oauth_timestamp":        {"1327384901"},
+			"oauth_signature_method": {"HMAC-SHA1"},
+			"oauth_version":          {"1.0"},
+			"name":                   {"value", "value"},
+		},
+		"GET&http%3A%2F%2Fexample.com%2FSpace%2520Craft&name%3Dvalue%26name%3Dvalue%26oauth_consumer_key%3Dabcd%26oauth_nonce%3DIx4U1Ei3RFL%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1327384901%26oauth_token%3Dijkl%26oauth_version%3D1.0",
+		Credentials{"abcd", "efgh"},
+		Credentials{"ijkl", "mnop"},
+		"TZZ5u7qQorLnmKs+iqunb8gqkh4="},
+	{
+		"GET",
+		"https://hello:443/world",
+		url.Values{
+			"oauth_consumer_key":     {"abcd"},
+			"oauth_token":            {"ijkl"},
+			"oauth_nonce":            {"Ix4U1Ei3RFL"},
+			"oauth_timestamp":        {"1327384901"},
+			"oauth_signature_method": {"HMAC-SHA1"},
+			"oauth_version":          {"1.0"},
+		},
+		"GET&https%3A%2F%2Fhello%2Fworld&oauth_consumer_key%3Dabcd%26oauth_nonce%3DIx4U1Ei3RFL%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1327384901%26oauth_token%3Dijkl%26oauth_version%3D1.0",
+		Credentials{"abcd", "efgh"},
+		Credentials{"ijkl", "mnop"},
+		"elVM7oxG5dFpjuXXHTJsb/G75cY="},
 }
 
 func TestSignature(t *testing.T) {
@@ -71,11 +102,11 @@ func TestSignature(t *testing.T) {
 		writeBaseString(&buf, st.method, st.url, st.params)
 		base := buf.String()
 		if base != st.base {
-			t.Errorf("base string for %s %s = %q, want %q", st.method, st.url, st.base, base)
+			t.Errorf("base string for %s %s\n    = %q,\n want %q", st.method, st.url, base, st.base)
 		}
 		sig := signature(&st.clientCredentials, &st.credentials, st.method, st.url, st.params)
 		if sig != st.sig {
-			t.Errorf("signature for %s %s = %q, want %q", st.method, st.url, st.sig, sig)
+			t.Errorf("signature for %s %s = %q, want %q", st.method, st.url, sig, st.sig)
 		}
 	}
 }

@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,6 +105,8 @@ func (p byKeyValue) Less(i, j int) bool {
 	return sgn < 0
 }
 
+var urlPat = regexp.MustCompile("^([^:]+)://([^:/]+)(:[0-9]+)?(.*)$")
+
 // writeBaseString writes method, url, and param to w using the OAuth signature
 // base string computation described in section 3.4.1 of the RFC.
 func writeBaseString(w io.Writer, method string, urlStr string, params url.Values) {
@@ -111,12 +114,32 @@ func writeBaseString(w io.Writer, method string, urlStr string, params url.Value
 	w.Write(encode(strings.ToUpper(method), false))
 	w.Write([]byte{'&'})
 
-	// URL
-	u, _ := url.Parse(urlStr)
-	w.Write(encode(strings.ToLower(u.Scheme), false))
+	// URL. We parse with a regexp instead of the standard library's URL parser
+	// because we need the application's encoded form of the path. The URL
+	// parser decodes the path and decoding is not reversible.
+	m := urlPat.FindStringSubmatch(urlStr)
+	if m == nil {
+		// TODO: return this as an error.
+		return
+	}
+
+	scheme := strings.ToLower(m[1])
+	host := strings.ToLower(m[2])
+	port := m[3]
+	path := m[4]
+
+	switch {
+	case scheme == "http" && port == ":80":
+		port = ""
+	case scheme == "https" && port == ":443":
+		port = ""
+	}
+
+	w.Write(encode(scheme, false))
 	w.Write(encode("://", false))
-	w.Write(encode(strings.ToLower(u.Host), false))
-	w.Write(encode(u.Path, false))
+	w.Write(encode(host, false))
+	w.Write(encode(port, false))
+	w.Write(encode(path, false))
 	w.Write([]byte{'&'})
 
 	// Create sorted array of encoded parameters. Parameter keys and values are
