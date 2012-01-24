@@ -14,6 +14,11 @@
 
 // Package oauth implements a subset of the OAuth client interface as defined
 // in RFC 5849.
+//
+// This package assumes that the path component of a request URL is written to
+// the network using the encoding implemented by the URL RequestURI method. The
+// HTTP client in the standard net/http package automatically re-encodes the
+// path with this encoding.
 package oauth
 
 import (
@@ -114,31 +119,21 @@ func writeBaseString(w io.Writer, method string, urlStr string, params url.Value
 	w.Write(encode(strings.ToUpper(method), false))
 	w.Write([]byte{'&'})
 
-	// URL. We parse with a regexp instead of the standard library's URL parser
-	// because we need the application's encoded form of the path. The URL
-	// parser decodes the path and decoding is not reversible.
-	m := urlPat.FindStringSubmatch(urlStr)
-	if m == nil {
-		// TODO: return this as an error.
-		return
-	}
-
-	scheme := strings.ToLower(m[1])
-	host := strings.ToLower(m[2])
-	port := m[3]
-	path := m[4]
-
+	// URL
+	u, _ := url.Parse(urlStr)
+	scheme := strings.ToLower(u.Scheme)
+	host := strings.ToLower(u.Host)
+	path := u.RequestURI()
 	switch {
-	case scheme == "http" && port == ":80":
-		port = ""
-	case scheme == "https" && port == ":443":
-		port = ""
+	case scheme == "http" && strings.HasSuffix(host, ":80"):
+		host = host[:len(host)-len(":80")]
+	case scheme == "https" && strings.HasSuffix(host, ":443"):
+		host = host[:len(host)-len(":443")]
 	}
 
 	w.Write(encode(scheme, false))
 	w.Write(encode("://", false))
 	w.Write(encode(host, false))
-	w.Write(encode(port, false))
 	w.Write(encode(path, false))
 	w.Write([]byte{'&'})
 
