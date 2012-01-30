@@ -17,7 +17,6 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -59,8 +58,8 @@ func readConfiguration() error {
 }
 
 // addCookie adds a cookie to the response. The cookie value is the base64
-// encoding of the gob encoding of data. If data is nil, then the cookie is
-// deleted.
+// encoding of the json encoding of data. If data is nil, then the cookie is
+// deleted. 
 func addCookie(w http.ResponseWriter, name string, data interface{}, maxAge time.Duration) error {
 	c := http.Cookie{
 		Name:     name,
@@ -71,7 +70,7 @@ func addCookie(w http.ResponseWriter, name string, data interface{}, maxAge time
 		maxAge = -10000 * time.Second
 	} else {
 		var b bytes.Buffer
-		if err := gob.NewEncoder(&b).Encode(data); err != nil {
+		if err := json.NewEncoder(&b).Encode(data); err != nil {
 			return err
 		}
 		c.Value = base64.URLEncoding.EncodeToString(b.Bytes())
@@ -84,13 +83,13 @@ func addCookie(w http.ResponseWriter, name string, data interface{}, maxAge time
 	return nil
 }
 
-// getCookie gets a base64 and gob encoded value from a cookie.
+// getCookie gets a base64 and json encoded value from a cookie.  
 func getCookie(r *http.Request, name string, value interface{}) error {
 	c, err := r.Cookie(name)
 	if err != nil {
 		return err
 	}
-	return gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(c.Value))).Decode(value)
+	return json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(c.Value))).Decode(value)
 }
 
 // getTwitter gets a resource from the Twitter API and decodes the json response to data.
