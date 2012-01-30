@@ -13,12 +13,11 @@
 // under the License.
 
 // Package oauth implements a subset of the OAuth client interface as defined
-// in RFC 5849.
+// in RFC 5849 (http://tools.ietf.org/html/rfc5849).
 //
-// This package assumes that the path component of a request URL is written to
-// the network using the encoding implemented by the URL RequestURI method. The
-// HTTP client in the standard net/http package automatically re-encodes the
-// path with this encoding.
+// This package assumes that the application writes request URL paths to the
+// network using the encoding implemented by the net/url URL RequestURI method.
+// The HTTP client in the standard net/http package uses this encoding.
 package oauth
 
 import (
@@ -112,7 +111,7 @@ func (p byKeyValue) Less(i, j int) bool {
 
 var urlPat = regexp.MustCompile("^([^:]+)://([^:/]+)(:[0-9]+)?(.*)$")
 
-// writeBaseString writes method, url, and param to w using the OAuth signature
+// writeBaseString writes method, url, and params to w using the OAuth signature
 // base string computation described in section 3.4.1 of the RFC.
 func writeBaseString(w io.Writer, method string, urlStr string, params url.Values) {
 	// Method
@@ -165,7 +164,9 @@ func writeBaseString(w io.Writer, method string, urlStr string, params url.Value
 	}
 }
 
-// signature returns the OAuth signature as described in section 3.4 of the RFC.
+// signature returns the OAuth signature  for the given credentials, method,
+// URL and params. See http://tools.ietf.org/html/rfc5849#section-3.4 for more
+// information about signatures.
 func signature(clientCredentials *Credentials, credentials *Credentials, method, urlStr string, params url.Values) string {
 	var key bytes.Buffer
 
@@ -207,7 +208,6 @@ type Client struct {
 	TemporaryCredentialRequestURI string // Also known as request token URL.
 	ResourceOwnerAuthorizationURI string // Also known as authorization URL.
 	TokenRequestURI               string // Also known as access token URL
-	Scope                         string // Required for Google services.
 }
 
 // Credentials represents client, temporary and token credentials.
@@ -221,7 +221,11 @@ var (
 	testingNonce     string
 )
 
-// SignParam adds an OAuth signature to params.
+// SignParam adds an OAuth signature to params See
+// http://tools.ietf.org/html/rfc5849#section-3.5.2 for information about
+// transmitting OAuth parameters in a request body and
+// http://tools.ietf.org/html/rfc5849#section-3.5.2 for information about
+// transmitting OAuth parameters in a query string.
 func (c *Client) SignParam(credentials *Credentials, method, urlStr string, params url.Values) {
 	params.Set("oauth_consumer_key", c.Credentials.Token)
 	params.Set("oauth_signature_method", "HMAC-SHA1")
@@ -244,7 +248,9 @@ func (c *Client) SignParam(credentials *Credentials, method, urlStr string, para
 }
 
 // AuthorizationHeader returns the HTTP authorization header value for given
-// method, url and parameters.
+// method, URL and parameters. See
+// http://tools.ietf.org/html/rfc5849#section-3.5.1 for information about
+// transmitting OAuth parameters in an HTTP request header.
 func (c *Client) AuthorizationHeader(credentials *Credentials, method, urlStr string, params url.Values) string {
 	// Don't scribble on caller's params. 
 	p := make(url.Values)
@@ -299,19 +305,23 @@ func (c *Client) request(client *http.Client, credentials *Credentials, urlStr s
 }
 
 // RequestTemporaryCredentials requests temporary credentials from the server.
-func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL string) (*Credentials, error) {
+// See http://tools.ietf.org/html/rfc5849#section-2.1 for information about
+// temporary credentials.
+func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL string, additionalParams url.Values) (*Credentials, error) {
 	params := make(url.Values)
+	for k, vs := range additionalParams {
+		params[k] = vs
+	}
 	if callbackURL != "" {
 		params.Set("oauth_callback", callbackURL)
-	}
-	if c.Scope != "" {
-		params.Set("scope", c.Scope)
 	}
 	credentials, _, err := c.request(client, nil, c.TemporaryCredentialRequestURI, params)
 	return credentials, err
 }
 
-// RequestToken requests token credentials from the server. 
+// RequestToken requests token credentials from the server. See
+// http://tools.ietf.org/html/rfc5849#section-2.3 for information about token
+// credentials.
 func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
 	params := make(url.Values)
 	if verifier != "" {
@@ -324,7 +334,14 @@ func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credent
 	return credentials, vals, nil
 }
 
-// AuthorizationURL returns the full authorization URL.
-func (c *Client) AuthorizationURL(temporaryCredentials *Credentials) string {
-	return c.ResourceOwnerAuthorizationURI + "?oauth_token=" + string(encode(temporaryCredentials.Token, false))
+// AuthorizationURL returns the URL for resource owner authorization.  See
+// http://tools.ietf.org/html/rfc5849#section-2.2 for information about
+// resource owner authorization.
+func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalParams url.Values) string {
+	params := make(url.Values)
+	for k, vs := range additionalParams {
+		params[k] = vs
+	}
+	params.Set("oauth_token", temporaryCredentials.Token)
+	return c.ResourceOwnerAuthorizationURI + "?" + params.Encode()
 }
