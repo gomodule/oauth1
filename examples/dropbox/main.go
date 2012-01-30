@@ -32,9 +32,9 @@ import (
 
 var (
 	oauthClient = oauth.Client{
-		TemporaryCredentialRequestURI: "http://api.twitter.com/oauth/request_token",
-		ResourceOwnerAuthorizationURI: "http://api.twitter.com/oauth/authenticate",
-		TokenRequestURI:               "http://api.twitter.com/oauth/access_token",
+		TemporaryCredentialRequestURI: "https://api.dropbox.com/1/oauth/request_token",
+		ResourceOwnerAuthorizationURI: "https://www.dropbox.com/1/oauth/authorize",
+		TokenRequestURI:               "https://api.dropbox.com/1/oauth/access_token",
 	}
 
 	config = struct {
@@ -92,24 +92,6 @@ func getCookie(r *http.Request, name string, value interface{}) error {
 	return json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(c.Value))).Decode(value)
 }
 
-// getTwitter gets a resource from the Twitter API and decodes the json response to data.
-func getTwitter(cred *oauth.Credentials, urlStr string, params url.Values, data interface{}) error {
-	if params == nil {
-		params = make(url.Values)
-	}
-	oauthClient.SignParam(cred, "GET", urlStr, params)
-	resp, err := http.Get(urlStr + "?" + params.Encode())
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		p, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf("Get %s returned status %d, %s", urlStr, resp.StatusCode, p)
-	}
-	return json.NewDecoder(resp.Body).Decode(data)
-}
-
 // respond responds to a request by executing the html template t with data.
 func respond(w http.ResponseWriter, t *template.Template, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -121,14 +103,16 @@ func respond(w http.ResponseWriter, t *template.Template, data interface{}) {
 // serveLogin gets the OAuth temp credentials and redirects the user the
 // OAuth server's authorization page.
 func serveLogin(w http.ResponseWriter, r *http.Request) {
+	// Dropbox supports the older OAuth 1.0 specification where the callback URL
+	// is passed to the authorization endpoint.
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, "", nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
 	}
 	addCookie(w, "temp", tempCred.Secret, 0)
-	http.Redirect(w, r, oauthClient.AuthorizationURL(tempCred, nil), 302)
+	http.Redirect(w, r, oauthClient.AuthorizationURL(tempCred, url.Values{"oauth_callback": {callback}}), 302)
 }
 
 // serveOAuthCallback handles callbacks from the OAuth server.
@@ -195,30 +179,27 @@ func serveHome(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) 
 	}
 }
 
-func serveTimeline(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
-	var timeline []map[string]interface{}
-	if err := getTwitter(
-		cred,
-		"http://api.twitter.com/1/statuses/home_timeline.json",
-		nil,
-		&timeline); err != nil {
-		http.Error(w, "Error getting timeline, "+err.Error(), 500)
+func serveInfo(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
+	params := make(url.Values)
+	const urlStr = "https://api.dropbox.com/1/account/info"
+	oauthClient.SignParam(cred, "GET", urlStr, params)
+	resp, err := http.Get(urlStr + "?" + params.Encode())
+	if err != nil {
+		http.Error(w, "Error getting info: "+err.Error(), 500)
 		return
 	}
-	respond(w, timelineTmpl, timeline)
-}
-
-func serveMessages(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
-	var dms []map[string]interface{}
-	if err := getTwitter(
-		cred,
-		"http://api.twitter.com/1/direct_messages.json",
-		nil,
-		&dms); err != nil {
-		http.Error(w, "Error getting timeline, "+err.Error(), 500)
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Error reading body:"+err.Error(), 500)
 		return
 	}
-	respond(w, messagesTmpl, dms)
+	if resp.StatusCode != 200 {
+		http.Error(w, fmt.Sprintf("Get %s returned status %d, %s", urlStr, resp.StatusCode, b), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write(b)
 }
 
 func main() {
@@ -227,8 +208,7 @@ func main() {
 		log.Fatalf("Error reading configuration, %v", err)
 	}
 	http.Handle("/", &authHandler{handler: serveHome, optional: true})
-	http.Handle("/timeline", &authHandler{handler: serveTimeline})
-	http.Handle("/messages", &authHandler{handler: serveMessages})
+	http.Handle("/info", &authHandler{handler: serveInfo})
 	http.HandleFunc("/login", serveLogin)
 	http.HandleFunc("/logout", serveLogout)
 	http.HandleFunc("/callback", serveOAuthCallback)
@@ -243,7 +223,7 @@ var (
 <head>
 </head>
 <body>
-<a href="/login"><img src="http://a0.twimg.com/images/dev/buttons/sign-in-with-twitter-d.png"></a>
+<a href="/login">login</a>
 </body>
 </html>`))
 
@@ -252,28 +232,7 @@ var (
 <head>
 </head>
 <body>
-<p><a href="/timeline">timeline</a>
-<p><a href="/messages">direct messages</a>
+<p><a href="/info">info</a>
 <p><a href="/logout">logout</a>
-</body>`))
-
-	messagesTmpl = template.Must(template.New("messages").Parse(
-		`<html>
-<head>
-</head>
-<body>
-{{range .}}
-<p><b>{{html .sender.name}}</b> {{html .text}}
-{{end}}
-</body>`))
-
-	timelineTmpl = template.Must(template.New("timeline").Parse(
-		`<html>
-<head>
-</head>
-<body>
-{{range .}}
-<p><b>{{html .user.name}}</b> {{html .text}}
-{{end}}
 </body>`))
 )
