@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/garyburd/go-oauth"
+	"github.com/garyburd/go-oauth/oauth"
 	"io/ioutil"
 	"log"
 	"net/http"

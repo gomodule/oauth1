@@ -1,13 +1,19 @@
+# Go-OAuth
+
 Go-OAuth is a [Go](http://golang.org/) client for the [OAuth 1.0 Protocol](http://tools.ietf.org/html/rfc5849).
 
-Use [goinstall](http://golang.org/cmd/goinstall/) to install the Go-OAuth package:
+## Installation
 
-    $ goinstall github.com/garyburd/go-oauth
+Use the [go tool](http://weekly.golang.org/cmd/go/) to install Go-OAuth:
+
+    go get github.com/garyburd/go-oauth/oauth
+
+##License
 
 Go-OAuth is available under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html).
 
-Links:
+## Documentation
     
-- [Documentation](http://gopkgdoc.appspot.com/pkg/github.com/garyburd/go-oauth)
+- [Reference](http://gopkgdoc.appspot.com/pkg/github.com/garyburd/go-oauth/oauth)
 - [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) - Login to Twitter with OAuth and display home timeline. 
-
+- [Dropbox Example](http://github.com/garyburd/go-oauth/tree/master/examples/dropbox) - Login to Dropbox and display account info. 
