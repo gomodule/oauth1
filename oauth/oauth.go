@@ -33,7 +33,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -108,8 +107,6 @@ func (p byKeyValue) Less(i, j int) bool {
 	}
 	return sgn < 0
 }
-
-var urlPat = regexp.MustCompile("^([^:]+)://([^:/]+)(:[0-9]+)?(.*)$")
 
 // writeBaseString writes method, url, and params to w using the OAuth signature
 // base string computation described in section 3.4.1 of the RFC.
@@ -207,7 +204,7 @@ type Client struct {
 	Credentials                   Credentials
 	TemporaryCredentialRequestURI string // Also known as request token URL.
 	ResourceOwnerAuthorizationURI string // Also known as authorization URL.
-	TokenRequestURI               string // Also known as access token URL
+	TokenRequestURI               string // Also known as access token URL.
 }
 
 // Credentials represents client, temporary and token credentials.
