@@ -45,6 +45,7 @@ var (
 
 	configPath = flag.String("config", "config.json", "Path to configuration file")
 	httpAddr   = flag.String("addr", ":8080", "HTTP server address")
+	sign       = flag.String("sign", "SignParam", "'SignParam' or 'Client'")
 )
 
 // readConfiguration reads the configuration file from the path specified by
@@ -92,22 +93,68 @@ func getCookie(r *http.Request, name string, value interface{}) error {
 	return json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(c.Value))).Decode(value)
 }
 
-// getTwitter gets a resource from the Twitter API and decodes the json response to data.
-func getTwitter(cred *oauth.Credentials, urlStr string, params url.Values, data interface{}) error {
-	if params == nil {
-		params = make(url.Values)
+// decodeResponse decodes the JSON response from the Twitter API.
+func decodeResponse(resp *http.Response, data interface{}) error {
+	if resp.StatusCode != 200 {
+		p, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("Get %s returned status %d, %s", resp.Request.URL, resp.StatusCode, p)
 	}
-	oauthClient.SignParam(cred, "GET", urlStr, params)
-	resp, err := http.Get(urlStr + "?" + params.Encode())
+	return json.NewDecoder(resp.Body).Decode(data)
+}
+
+// getTwitter gets a resource from the Twitter API and decodes the JSON response to data. 
+var getTwitter func(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error
+
+func getTwitterSignParam(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
+	if form == nil {
+		form = make(url.Values)
+	}
+	oauthClient.SignParam(cred, "GET", urlStr, form)
+	resp, err := http.Get(urlStr + "?" + form.Encode())
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		p, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf("Get %s returned status %d, %s", urlStr, resp.StatusCode, p)
+	return decodeResponse(resp, data)
+}
+
+func getTwitterClient(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
+	if len(form) > 0 {
+		urlStr = urlStr + "?" + form.Encode()
 	}
-	return json.NewDecoder(resp.Body).Decode(data)
+	c := oauthClient.HTTPClient(cred, http.DefaultClient)
+	resp, err := c.Get(urlStr)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return decodeResponse(resp, data)
+}
+
+// postTwitter posts to the Twitter API and decodes the JSON response to data. 
+var postTwitter func(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error
+
+func postTwitterSignParam(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
+	oauthClient.SignParam(cred, "POST", urlStr, form)
+	resp, err := http.PostForm(urlStr, form)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return decodeResponse(resp, data)
+}
+
+func postTwitterClient(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
+	if form == nil {
+		form = make(url.Values)
+	}
+	c := oauthClient.HTTPClient(cred, http.DefaultClient)
+	resp, err := c.PostForm(urlStr, form)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return decodeResponse(resp, data)
 }
 
 // respond responds to a request by executing the html template t with data.
@@ -221,14 +268,43 @@ func serveMessages(w http.ResponseWriter, r *http.Request, cred *oauth.Credentia
 	respond(w, messagesTmpl, dms)
 }
 
+func serveFollow(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
+	var profile map[string]interface{}
+	if err := postTwitter(
+		cred,
+		"https://api.twitter.com/1.1/friendships/create.json",
+		url.Values{"screen_name": {"gburd"}, "follow": {"true"}},
+		&profile); err != nil {
+		http.Error(w, "Error following, "+err.Error(), 500)
+		return
+	}
+	respond(w, followTmpl, profile)
+}
+
 func main() {
 	flag.Parse()
 	if err := readConfiguration(); err != nil {
 		log.Fatalf("Error reading configuration, %v", err)
 	}
+
+	// This application demonstrates different ways to use the oauth Client to
+	// sign requests. A real application only needs to sign requests one way.
+	// Do not copy the following switch statement to your application.
+	switch *sign {
+	case "SignParam":
+		getTwitter = getTwitterSignParam
+		postTwitter = postTwitterSignParam
+	case "Client":
+		getTwitter = getTwitterClient
+		postTwitter = postTwitterClient
+	default:
+		log.Fatalf("bad valud for sign flag, %q", *sign)
+	}
+
 	http.Handle("/", &authHandler{handler: serveHome, optional: true})
 	http.Handle("/timeline", &authHandler{handler: serveTimeline})
 	http.Handle("/messages", &authHandler{handler: serveMessages})
+	http.Handle("/follow", &authHandler{handler: serveFollow})
 	http.HandleFunc("/login", serveLogin)
 	http.HandleFunc("/logout", serveLogout)
 	http.HandleFunc("/callback", serveOAuthCallback)
@@ -254,26 +330,38 @@ var (
 <body>
 <p><a href="/timeline">timeline</a>
 <p><a href="/messages">direct messages</a>
+<p><a href="/follow">follow @gburd</a>
 <p><a href="/logout">logout</a>
-</body>`))
+</body></html>`))
 
 	messagesTmpl = template.Must(template.New("messages").Parse(
 		`<html>
 <head>
 </head>
 <body>
+<p><a href="/">home</a>
 {{range .}}
 <p><b>{{html .sender.name}}</b> {{html .text}}
 {{end}}
-</body>`))
+</body></html>`))
 
 	timelineTmpl = template.Must(template.New("timeline").Parse(
 		`<html>
 <head>
 </head>
 <body>
+<p><a href="/">home</a>
 {{range .}}
 <p><b>{{html .user.name}}</b> {{html .text}}
 {{end}}
-</body>`))
+</body></html>`))
+
+	followTmpl = template.Must(template.New("follow").Parse(
+		`<html>
+<head>
+</head>
+<body>
+<p><a href="/">home</a>
+<p>You are now following <a href="https://twitter.com/{{html .screen_name}}">{{html .name}}</a>
+</body></html>`))
 )

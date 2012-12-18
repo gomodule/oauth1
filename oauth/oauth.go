@@ -13,11 +13,7 @@
 // under the License.
 
 // Package oauth implements a subset of the OAuth client interface as defined
-// in RFC 5849 (http://tools.ietf.org/html/rfc5849).
-//
-// This package assumes that the application writes request URL paths to the
-// network using the encoding implemented by the net/url URL RequestURI method.
-// The HTTP client in the standard net/http package uses this encoding.
+// in RFC 5849.
 package oauth
 
 import (
@@ -108,18 +104,32 @@ func (p byKeyValue) Less(i, j int) bool {
 	return sgn < 0
 }
 
+func (p byKeyValue) appendValues(values url.Values) byKeyValue {
+	for k, vs := range values {
+		k := encode(k, true)
+		for _, v := range vs {
+			v := encode(v, true)
+			p = append(p, keyValue{k, v})
+		}
+	}
+	return p
+}
+
 // writeBaseString writes method, url, and params to w using the OAuth signature
 // base string computation described in section 3.4.1 of the RFC.
-func writeBaseString(w io.Writer, method string, urlStr string, params url.Values) {
+func writeBaseString(w io.Writer, method string, u *url.URL, appParams url.Values, oauthParams map[string]string) {
 	// Method
 	w.Write(encode(strings.ToUpper(method), false))
 	w.Write([]byte{'&'})
 
 	// URL
-	u, _ := url.Parse(urlStr)
 	scheme := strings.ToLower(u.Scheme)
 	host := strings.ToLower(u.Host)
-	path := u.RequestURI()
+
+	uNoQuery := *u
+	uNoQuery.RawQuery = ""
+	path := uNoQuery.RequestURI()
+
 	switch {
 	case scheme == "http" && strings.HasSuffix(host, ":80"):
 		host = host[:len(host)-len(":80")]
@@ -133,17 +143,17 @@ func writeBaseString(w io.Writer, method string, urlStr string, params url.Value
 	w.Write(encode(path, false))
 	w.Write([]byte{'&'})
 
-	// Create sorted array of encoded parameters. Parameter keys and values are
-	// double encoded in a single step. This is safe to do because double
-	// encoding does not change the sort order.
-	p := make([]keyValue, 0, len(params))
-	for key, values := range params {
-		encodedKey := encode(key, true)
-		for _, value := range values {
-			p = append(p, keyValue{encodedKey, encode(value, true)})
-		}
+	// Create sorted slice of encoded parameters. Parameter keys and values are
+	// double encoded in a single step. This is safe because double encoding
+	// does not change the sort order.
+	queryParams := u.Query()
+	p := make(byKeyValue, 0, len(appParams)+len(queryParams)+len(oauthParams))
+	p = p.appendValues(appParams)
+	p = p.appendValues(queryParams)
+	for k, v := range oauthParams {
+		p = append(p, keyValue{encode(k, true), encode(v, true)})
 	}
-	sort.Sort(byKeyValue(p))
+	sort.Sort(p)
 
 	// Write the parameters.
 	encodedAmp := encode("&", false)
@@ -161,27 +171,6 @@ func writeBaseString(w io.Writer, method string, urlStr string, params url.Value
 	}
 }
 
-// signature returns the OAuth signature  for the given credentials, method,
-// URL and params. See http://tools.ietf.org/html/rfc5849#section-3.4 for more
-// information about signatures.
-func signature(clientCredentials *Credentials, credentials *Credentials, method, urlStr string, params url.Values) string {
-	var key bytes.Buffer
-
-	key.Write(encode(clientCredentials.Secret, false))
-	key.WriteByte('&')
-	if credentials != nil {
-		key.Write(encode(credentials.Secret, false))
-	}
-
-	h := hmac.New(sha1.New, key.Bytes())
-	writeBaseString(h, method, urlStr, params)
-	sum := h.Sum(nil)
-
-	encodedSum := make([]byte, base64.StdEncoding.EncodedLen(len(sum)))
-	base64.StdEncoding.Encode(encodedSum, sum)
-	return string(encodedSum)
-}
-
 var (
 	nonceLock    sync.Mutex
 	nonceCounter uint64
@@ -197,6 +186,46 @@ func nonce() string {
 	result := strconv.FormatUint(nonceCounter, 16)
 	nonceCounter += 1
 	return result
+}
+
+// oauthParams returns the OAuth request parameters for the given credentials,
+// method, URL and application params. See
+// http://tools.ietf.org/html/rfc5849#section-3.4 for more information about
+// signatures.
+func oauthParams(clientCredentials *Credentials, credentials *Credentials, method string, u *url.URL, appParams url.Values) map[string]string {
+	oauthParams := map[string]string{
+		"oauth_consumer_key":     clientCredentials.Token,
+		"oauth_signature_method": "HMAC-SHA1",
+		"oauth_timestamp":        strconv.FormatInt(time.Now().Unix(), 10),
+		"oauth_version":          "1.0",
+		"oauth_nonce":            nonce(),
+	}
+	if credentials != nil {
+		oauthParams["oauth_token"] = credentials.Token
+	}
+	if testingNonce != "" {
+		oauthParams["oauth_nonce"] = testingNonce
+	}
+	if testingTimestamp != "" {
+		oauthParams["oauth_timestamp"] = testingTimestamp
+	}
+
+	var key bytes.Buffer
+	key.Write(encode(clientCredentials.Secret, false))
+	key.WriteByte('&')
+	if credentials != nil {
+		key.Write(encode(credentials.Secret, false))
+	}
+
+	h := hmac.New(sha1.New, key.Bytes())
+	writeBaseString(h, method, u, appParams, oauthParams)
+	sum := h.Sum(nil)
+
+	encodedSum := make([]byte, base64.StdEncoding.EncodedLen(len(sum)))
+	base64.StdEncoding.Encode(encodedSum, sum)
+
+	oauthParams["oauth_signature"] = string(encodedSum)
+	return oauthParams
 }
 
 // Client represents an OAuth client.
@@ -218,55 +247,39 @@ var (
 	testingNonce     string
 )
 
-// SignParam adds an OAuth signature to params See
-// http://tools.ietf.org/html/rfc5849#section-3.5.2 for information about
-// transmitting OAuth parameters in a request body and
+// SignParam adds an OAuth signature to params. The urlStr must not include a query string.
+//
+// See http://tools.ietf.org/html/rfc5849#section-3.5.2 for
+// information about transmitting OAuth parameters in a request body and
 // http://tools.ietf.org/html/rfc5849#section-3.5.2 for information about
 // transmitting OAuth parameters in a query string.
 func (c *Client) SignParam(credentials *Credentials, method, urlStr string, params url.Values) {
-	params.Set("oauth_consumer_key", c.Credentials.Token)
-	params.Set("oauth_signature_method", "HMAC-SHA1")
-	params.Set("oauth_timestamp", strconv.FormatInt(time.Now().Unix(), 10))
-	params.Set("oauth_version", "1.0")
-	if testingNonce == "" {
-		params.Set("oauth_nonce", nonce())
-	} else {
-		params.Set("oauth_nonce", testingNonce)
+	u, _ := url.Parse(urlStr)
+	u.RawQuery = ""
+	for k, v := range oauthParams(&c.Credentials, credentials, method, u, params) {
+		params.Set(k, v)
 	}
-	if testingTimestamp == "" {
-		params.Set("oauth_timestamp", strconv.FormatInt(time.Now().Unix(), 10))
-	} else {
-		params.Set("oauth_timestamp", testingTimestamp)
-	}
-	if credentials != nil {
-		params.Set("oauth_token", credentials.Token)
-	}
-	params.Set("oauth_signature", signature(&c.Credentials, credentials, method, urlStr, params))
 }
 
 // AuthorizationHeader returns the HTTP authorization header value for given
-// method, URL and parameters. See
-// http://tools.ietf.org/html/rfc5849#section-3.5.1 for information about
+// method, URL and parameters. 
+//
+// See http://tools.ietf.org/html/rfc5849#section-3.5.1 for information about
 // transmitting OAuth parameters in an HTTP request header.
-func (c *Client) AuthorizationHeader(credentials *Credentials, method, urlStr string, params url.Values) string {
-	// Don't scribble on caller's params. 
-	p := make(url.Values)
-	for k, v := range params {
-		p[k] = v
-	}
-	c.SignParam(credentials, method, urlStr, p)
+func (c *Client) AuthorizationHeader(credentials *Credentials, method string, u *url.URL, params url.Values) string {
+	p := oauthParams(&c.Credentials, credentials, method, u, params)
 	var buf bytes.Buffer
 	buf.WriteString(`OAuth oauth_consumer_key="`)
-	buf.Write(encode(p["oauth_consumer_key"][0], false))
+	buf.Write(encode(p["oauth_consumer_key"], false))
 	buf.WriteString(`", oauth_nonce="`)
-	buf.Write(encode(p["oauth_nonce"][0], false))
+	buf.Write(encode(p["oauth_nonce"], false))
 	buf.WriteString(`", oauth_signature="`)
-	buf.Write(encode(p["oauth_signature"][0], false))
-	buf.WriteString(`", oauth_timestamp="`)
-	buf.Write(encode(p["oauth_timestamp"][0], false))
+	buf.Write(encode(p["oauth_signature"], false))
+	buf.WriteString(`", oauth_signature_method="HMAC-SHA1", oauth_timestamp="`)
+	buf.Write(encode(p["oauth_timestamp"], false))
 	buf.WriteString(`", oauth_token="`)
-	buf.Write(encode(p["oauth_token"][0], false))
-	buf.WriteString(`", oauth_signature_method="HMAC-SHA1", oauth_version="1.0"`)
+	buf.Write(encode(p["oauth_token"], false))
+	buf.WriteString(`", oauth_version="1.0"`)
 	return buf.String()
 }
 
@@ -331,7 +344,7 @@ func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credent
 	return credentials, vals, nil
 }
 
-// AuthorizationURL returns the URL for resource owner authorization.  See
+// AuthorizationURL returns the URL for resource owner authorization. See
 // http://tools.ietf.org/html/rfc5849#section-2.2 for information about
 // resource owner authorization.
 func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalParams url.Values) string {
@@ -341,4 +354,56 @@ func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalP
 	}
 	params.Set("oauth_token", temporaryCredentials.Token)
 	return c.ResourceOwnerAuthorizationURI + "?" + params.Encode()
+}
+
+type transport struct {
+	client      *Client
+	credentials *Credentials
+	transport   http.RoundTripper
+}
+
+func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	var params url.Values
+	if ct := r.Header.Get("Content-Type"); ct == "application/x-www-form-urlencoded" {
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return nil, err
+		}
+		params, err = url.ParseQuery(string(b))
+		if err != nil {
+			return nil, err
+		}
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{bytes.NewReader(b), r.Body}
+	}
+	h := make(http.Header)
+	for k, vs := range r.Header {
+		h[k] = vs
+	}
+	h.Set("Authorization", t.client.AuthorizationHeader(t.credentials, r.Method, r.URL, params))
+	r.Header = h
+	return t.transport.RoundTrip(r)
+}
+
+// Transport wraps baseTransport with request signing. Because the returned
+// transport must buffer and parse the request body, it is more efficient to
+// use SignParam or AuthorizationHeader directly.
+func (c *Client) HTTPTransport(credentials *Credentials, baseTransport http.RoundTripper) http.RoundTripper {
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
+	}
+	return &transport{client: c, credentials: credentials, transport: baseTransport}
+}
+
+// Client returns a copy of baseClient with the transport set to a signing
+// wrapper around baseClient's transport.
+func (c *Client) HTTPClient(credentials *Credentials, baseClient *http.Client) *http.Client {
+	if baseClient == nil {
+		baseClient = http.DefaultClient
+	}
+	client := *baseClient
+	client.Transport = c.HTTPTransport(credentials, baseClient.Transport)
+	return &client
 }

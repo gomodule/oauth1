@@ -20,129 +20,129 @@ import (
 	"testing"
 )
 
-var signatureTests = []struct {
-	method            string
-	url               string
-	params            url.Values
-	base              string
+func parseURL(urlStr string) *url.URL {
+	u, _ := url.Parse(urlStr)
+	return u
+}
+
+var oauthTests = []struct {
+	method    string
+	url       *url.URL
+	appParams url.Values
+	nonce     string
+	timestamp string
+
 	clientCredentials Credentials
 	credentials       Credentials
-	sig               string
+
+	base   string
+	header string
 }{
 	{
+		// Simple example from Twitter OAuth tool
+		"GET",
+		parseURL("https://api.twitter.com/1/"),
+		url.Values{"page": {"10"}},
+		"8067e8abc6bdca2006818132445c8f4c",
+		"1355795903",
+		Credentials{"kMViZR2MHk2mM7hUNVw9A", "56Fgl58yOfqXOhHXX0ybvOmSnPQFvR2miYmm30A"},
+		Credentials{"10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", "yF75mvq4LZMHj9O0DXwoC3ZxUnN1ptvieThYuOAYM"},
+		`GET&https%3A%2F%2Fapi.twitter.com%2F1%2F&oauth_consumer_key%3DkMViZR2MHk2mM7hUNVw9A%26oauth_nonce%3D8067e8abc6bdca2006818132445c8f4c%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1355795903%26oauth_token%3D10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU%26oauth_version%3D1.0%26page%3D10`,
+		`OAuth oauth_consumer_key="kMViZR2MHk2mM7hUNVw9A", oauth_nonce="8067e8abc6bdca2006818132445c8f4c", oauth_signature="o5cx1ggJrY9ognZuVVeUwglKV8U%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1355795903", oauth_token="10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", oauth_version="1.0"`,
+	},
+	{
+		// Test case and port insensitivity.
 		"GeT",
-		"hTtp://pHotos.example.net/photos",
-		url.Values{
-			"oauth_consumer_key":     {"dpf43f3p2l4k3l03"},
-			"oauth_token":            {"nnch734d00sl2jdk"},
-			"oauth_nonce":            {"kllo9940pd9333jh"},
-			"oauth_timestamp":        {"1191242096"},
-			"oauth_signature_method": {"HMAC-SHA1"},
-			"oauth_version":          {"1.0"},
-			"size":                   {"original"},
-			"file":                   {"vacation.jpg"},
-		},
-		"GET&http%3A%2F%2Fphotos.example.net%2Fphotos&file%3Dvacation.jpg%26oauth_consumer_key%3Ddpf43f3p2l4k3l03%26oauth_nonce%3Dkllo9940pd9333jh%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1191242096%26oauth_token%3Dnnch734d00sl2jdk%26oauth_version%3D1.0%26size%3Doriginal",
-		Credentials{"dpf43f3p2l4k3l03", "kd94hf93k423kf44"},
-		Credentials{"kd94hf93k423kf44", "pfkkdhi9sl3r4s00"},
-		"tR3+Ty81lMeYAr/Fid0kMTYa/WM="},
+		parseURL("https://apI.twItter.com:443/1/"),
+		url.Values{"page": {"10"}},
+		"8067e8abc6bdca2006818132445c8f4c",
+		"1355795903",
+		Credentials{"kMViZR2MHk2mM7hUNVw9A", "56Fgl58yOfqXOhHXX0ybvOmSnPQFvR2miYmm30A"},
+		Credentials{"10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", "yF75mvq4LZMHj9O0DXwoC3ZxUnN1ptvieThYuOAYM"},
+		`GET&https%3A%2F%2Fapi.twitter.com%2F1%2F&oauth_consumer_key%3DkMViZR2MHk2mM7hUNVw9A%26oauth_nonce%3D8067e8abc6bdca2006818132445c8f4c%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1355795903%26oauth_token%3D10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU%26oauth_version%3D1.0%26page%3D10`,
+		`OAuth oauth_consumer_key="kMViZR2MHk2mM7hUNVw9A", oauth_nonce="8067e8abc6bdca2006818132445c8f4c", oauth_signature="o5cx1ggJrY9ognZuVVeUwglKV8U%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1355795903", oauth_token="10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", oauth_version="1.0"`,
+	},
 	{
+		// Example generated using the Netflix OAuth tool.
 		"GET",
-		"http://PHOTOS.example.net:8001/Photos",
-		url.Values{
-			"oauth_consumer_key":     {"dpf43f3++p+#2l4k3l03"},
-			"oauth_token":            {"nnch734d(0)0sl2jdk"},
-			"oauth_nonce":            {"kllo~9940~pd9333jh"},
-			"oauth_timestamp":        {"1191242096"},
-			"oauth_signature_method": {"HMAC-SHA1"},
-			"oauth_version":          {"1.0"},
-			"photo size":             {"300%"},
-			"title":                  {"Back of $100 Dollars Bill"},
-		},
+		parseURL("http://api-public.netflix.com/catalog/titles"),
+		url.Values{"term": {"Dark Knight"}, "count": {"2"}},
+		"1234",
+		"1355850443",
+		Credentials{"apiKey001", "sharedSecret002"},
+		Credentials{"accessToken003", "accessSecret004"},
+		`GET&http%3A%2F%2Fapi-public.netflix.com%2Fcatalog%2Ftitles&count%3D2%26oauth_consumer_key%3DapiKey001%26oauth_nonce%3D1234%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1355850443%26oauth_token%3DaccessToken003%26oauth_version%3D1.0%26term%3DDark%2520Knight`,
+		`OAuth oauth_consumer_key="apiKey001", oauth_nonce="1234", oauth_signature="0JAoaqt6oz6TJx8N%2B06XmhPjcOs%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1355850443", oauth_token="accessToken003", oauth_version="1.0"`,
+	},
+	{
+		// Test special characters in form values.
+		"GET",
+		parseURL("http://PHOTOS.example.net:8001/Photos"),
+		url.Values{"photo size": {"300%"}, "title": {"Back of $100 Dollars Bill"}},
+		"kllo~9940~pd9333jh",
+		"1191242096",
+		Credentials{"dpf43f3++p+#2l4k3l03", "secret01"},
+		Credentials{"nnch734d(0)0sl2jdk", "secret02"},
 		"GET&http%3A%2F%2Fphotos.example.net%3A8001%2FPhotos&oauth_consumer_key%3Ddpf43f3%252B%252Bp%252B%25232l4k3l03%26oauth_nonce%3Dkllo~9940~pd9333jh%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1191242096%26oauth_token%3Dnnch734d%25280%25290sl2jdk%26oauth_version%3D1.0%26photo%2520size%3D300%2525%26title%3DBack%2520of%2520%2524100%2520Dollars%2520Bill",
-		Credentials{"dpf43f3++p+#2l4k3l03", "kd9@4h%%4f93k423kf44"},
-		Credentials{"nnch734d(0)0sl2jdk", "pfkkd#hi9_sl-3r=4s00"},
-		"tTFyqivhutHiglPvmyilZlHm5Uk="},
+		`OAuth oauth_consumer_key="dpf43f3%2B%2Bp%2B%232l4k3l03", oauth_nonce="kllo~9940~pd9333jh", oauth_signature="n1UAoQy2PoIYizZUiWvkdCxM3P0%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1191242096", oauth_token="nnch734d%280%290sl2jdk", oauth_version="1.0"`,
+	},
 	{
+		// Test special characters in path, multiple values for same key in form.
 		"GET",
-		"http://EXAMPLE.COM:80/Space%20Craft",
-		url.Values{
-			"oauth_consumer_key":     {"abcd"},
-			"oauth_token":            {"ijkl"},
-			"oauth_nonce":            {"Ix4U1Ei3RFL"},
-			"oauth_timestamp":        {"1327384901"},
-			"oauth_signature_method": {"HMAC-SHA1"},
-			"oauth_version":          {"1.0"},
-			"name":                   {"value", "value"},
-		},
+		parseURL("http://EXAMPLE.COM:80/Space%20Craft"),
+		url.Values{"name": {"value", "value"}},
+		"Ix4U1Ei3RFL",
+		"1327384901",
+		Credentials{"abcd", "efgh"},
+		Credentials{"ijkl", "mnop"},
 		"GET&http%3A%2F%2Fexample.com%2FSpace%2520Craft&name%3Dvalue%26name%3Dvalue%26oauth_consumer_key%3Dabcd%26oauth_nonce%3DIx4U1Ei3RFL%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1327384901%26oauth_token%3Dijkl%26oauth_version%3D1.0",
-		Credentials{"abcd", "efgh"},
-		Credentials{"ijkl", "mnop"},
-		"TZZ5u7qQorLnmKs+iqunb8gqkh4="},
+		`OAuth oauth_consumer_key="abcd", oauth_nonce="Ix4U1Ei3RFL", oauth_signature="TZZ5u7qQorLnmKs%2Biqunb8gqkh4%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1327384901", oauth_token="ijkl", oauth_version="1.0"`,
+	},
 	{
+		// Test with query string in URL.
 		"GET",
-		"https://hello:443/world",
-		url.Values{
-			"oauth_consumer_key":     {"abcd"},
-			"oauth_token":            {"ijkl"},
-			"oauth_nonce":            {"Ix4U1Ei3RFL"},
-			"oauth_timestamp":        {"1327384901"},
-			"oauth_signature_method": {"HMAC-SHA1"},
-			"oauth_version":          {"1.0"},
-		},
-		"GET&https%3A%2F%2Fhello%2Fworld&oauth_consumer_key%3Dabcd%26oauth_nonce%3DIx4U1Ei3RFL%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1327384901%26oauth_token%3Dijkl%26oauth_version%3D1.0",
+		parseURL("http://EXAMPLE.COM:80/Space%20Craft?name=value"),
+		url.Values{"name": {"value"}},
+		"Ix4U1Ei3RFL",
+		"1327384901",
 		Credentials{"abcd", "efgh"},
 		Credentials{"ijkl", "mnop"},
-		"elVM7oxG5dFpjuXXHTJsb/G75cY="},
+		"GET&http%3A%2F%2Fexample.com%2FSpace%2520Craft&name%3Dvalue%26name%3Dvalue%26oauth_consumer_key%3Dabcd%26oauth_nonce%3DIx4U1Ei3RFL%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1327384901%26oauth_token%3Dijkl%26oauth_version%3D1.0",
+		`OAuth oauth_consumer_key="abcd", oauth_nonce="Ix4U1Ei3RFL", oauth_signature="TZZ5u7qQorLnmKs%2Biqunb8gqkh4%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1327384901", oauth_token="ijkl", oauth_version="1.0"`,
+	},
 }
 
-func TestSignature(t *testing.T) {
-	for _, st := range signatureTests {
+func TestBaseString(t *testing.T) {
+	for _, ot := range oauthTests {
+		oauthParams := map[string]string{
+			"oauth_consumer_key":     ot.clientCredentials.Token,
+			"oauth_nonce":            ot.nonce,
+			"oauth_timestamp":        ot.timestamp,
+			"oauth_token":            ot.credentials.Token,
+			"oauth_signature_method": "HMAC-SHA1",
+			"oauth_version":          "1.0",
+		}
 		var buf bytes.Buffer
-		writeBaseString(&buf, st.method, st.url, st.params)
+		writeBaseString(&buf, ot.method, ot.url, ot.appParams, oauthParams)
 		base := buf.String()
-		if base != st.base {
-			t.Errorf("base string for %s %s\n    = %q,\n want %q", st.method, st.url, base, st.base)
-		}
-		sig := signature(&st.clientCredentials, &st.credentials, st.method, st.url, st.params)
-		if sig != st.sig {
-			t.Errorf("signature for %s %s = %q, want %q", st.method, st.url, sig, st.sig)
+		if base != ot.base {
+			t.Errorf("base string for %s %s\n    = %q,\n want %q", ot.method, ot.url, base, ot.base)
 		}
 	}
 }
 
-func TestHeader(t *testing.T) {
-	// All values in this test were taken from Twitter's OAuth tool.
-
-	client := Client{
-		Credentials: Credentials{
-			Token:  "3NNCZTHoBoSSk1V4cPCZA",
-			Secret: "pHT9O4hvqH8mwe1JB224BQ4iv9cXPE11m9n90n0EY",
-		},
-	}
-	token := Credentials{
-		Token:  "10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU",
-		Secret: "yF75mvq4LZMHj9O0DXwoC3ZxUnN1ptvieThYuOAYM",
-	}
-	urlStr := "https://api.twitter.com/1/direct_messages.json"
-	params := url.Values{"count": {"10"}}
-
-	testingTimestamp = "1323729189"
-	testingNonce = "8e51932665a8e33c54e8872f09b661b8"
-	actualHeader := client.AuthorizationHeader(&token, "GET", urlStr, params)
-	testingTimestamp = ""
-	testingNonce = ""
-
-	expectedHeader := `OAuth ` +
-		`oauth_consumer_key="3NNCZTHoBoSSk1V4cPCZA", ` +
-		`oauth_nonce="8e51932665a8e33c54e8872f09b661b8", ` +
-		`oauth_signature="13tM5UUxbPrRZjeCGWgl3yUuUNA%3D", ` +
-		`oauth_timestamp="1323729189", ` +
-		`oauth_token="10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", ` +
-		`oauth_signature_method="HMAC-SHA1", ` +
-		`oauth_version="1.0"`
-
-	if actualHeader != expectedHeader {
-		t.Errorf("Header mismatch, \ngot:  %s\nwant: %s", actualHeader, expectedHeader)
+func TestAuthorizationHeader(t *testing.T) {
+	defer func() {
+		testingNonce = ""
+		testingTimestamp = ""
+	}()
+	for _, ot := range oauthTests {
+		c := Client{Credentials: ot.clientCredentials}
+		testingNonce = ot.nonce
+		testingTimestamp = ot.timestamp
+		header := c.AuthorizationHeader(&ot.credentials, ot.method, ot.url, ot.appParams)
+		if header != ot.header {
+			t.Errorf("authorization header for %s %s\ngot:  %s\nwant: %s", ot.method, ot.url, header, ot.header)
+		}
 	}
 }
