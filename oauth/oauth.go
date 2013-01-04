@@ -14,6 +14,47 @@
 
 // Package oauth implements a subset of the OAuth client interface as defined
 // in RFC 5849.
+// 
+// Redirection-based authorization
+//
+// This section outlines how to use the oauth package in redirection-based
+// authorization (http://tools.ietf.org/html/rfc5849#section-2).
+//
+// Step 1: Create a Client using credentials and URIs provided by the server.
+// The Client can be initialized once at application startup and stored in a
+// package level-variable.
+//
+// Step 2: Request temporary credentials using the Client
+// RequestTemporaryCredentials method. The callbackURL parameter is the URL of
+// the callback handler in step 4. Save the returned credential secret so that
+// it can be later found using credential token as a key. The secret can be
+// stored in a database keyed by the token. Another option is to store the
+// token and secret in session storage or a cookie.
+//
+// Step 3: Redirect the user to URL returned from AuthorizationURL method. The
+// AuthorizationURL method uses the temporary credentials from step 2 and other
+// parameters as specified by the server.
+//
+// Step 4: The server redirects back to the callback URL specified in step 2
+// with the temporary token and a verifier. Use the temporary token to find the
+// temporary secret saved in step 2. Using the temporary token, temporary
+// secret and verifier, request token credentials using the client RequestToken
+// method. Save the returned credentials for later use in the application.
+//
+// Making authenticated requests
+//
+// The Client type has two low-level methods for signing requests. The SignForm
+// method adds an OAuth signature to a form. The application makes an
+// authenticated request by encoding the modified form to the query string or
+// request body. The AuthorizationHeader method returns an Authorization header
+// value with the OAuth signature. The application makes an authenticated
+// request adding the Authorization header to the request. Most servers support
+// both form and header authentication. Use the method that's most convenient
+// for the application.
+//
+// The Get and Post methods sign and invoke a request using the supplied
+// net/http Client. These methods are easy to use, but not as flexible as
+// constructing a request using one of the low-level methods.
 package oauth
 
 import (
@@ -117,7 +158,7 @@ func (p byKeyValue) appendValues(values url.Values) byKeyValue {
 
 // writeBaseString writes method, url, and params to w using the OAuth signature
 // base string computation described in section 3.4.1 of the RFC.
-func writeBaseString(w io.Writer, method string, u *url.URL, appParams url.Values, oauthParams map[string]string) {
+func writeBaseString(w io.Writer, method string, u *url.URL, form url.Values, oauthParams map[string]string) {
 	// Method
 	w.Write(encode(strings.ToUpper(method), false))
 	w.Write([]byte{'&'})
@@ -147,8 +188,8 @@ func writeBaseString(w io.Writer, method string, u *url.URL, appParams url.Value
 	// double encoded in a single step. This is safe because double encoding
 	// does not change the sort order.
 	queryParams := u.Query()
-	p := make(byKeyValue, 0, len(appParams)+len(queryParams)+len(oauthParams))
-	p = p.appendValues(appParams)
+	p := make(byKeyValue, 0, len(form)+len(queryParams)+len(oauthParams))
+	p = p.appendValues(form)
 	p = p.appendValues(queryParams)
 	for k, v := range oauthParams {
 		p = append(p, keyValue{encode(k, true), encode(v, true)})
@@ -192,7 +233,7 @@ func nonce() string {
 // method, URL and application params. See
 // http://tools.ietf.org/html/rfc5849#section-3.4 for more information about
 // signatures.
-func oauthParams(clientCredentials *Credentials, credentials *Credentials, method string, u *url.URL, appParams url.Values) map[string]string {
+func oauthParams(clientCredentials *Credentials, credentials *Credentials, method string, u *url.URL, form url.Values) map[string]string {
 	oauthParams := map[string]string{
 		"oauth_consumer_key":     clientCredentials.Token,
 		"oauth_signature_method": "HMAC-SHA1",
@@ -218,7 +259,7 @@ func oauthParams(clientCredentials *Credentials, credentials *Credentials, metho
 	}
 
 	h := hmac.New(sha1.New, key.Bytes())
-	writeBaseString(h, method, u, appParams, oauthParams)
+	writeBaseString(h, method, u, form, oauthParams)
 	sum := h.Sum(nil)
 
 	encodedSum := make([]byte, base64.StdEncoding.EncodedLen(len(sum)))
@@ -247,12 +288,24 @@ var (
 	testingNonce     string
 )
 
-// SignParam adds an OAuth signature to params. The urlStr must not include a query string.
+// SignForm adds an OAuth signature to form. The urlStr argument must not
+// include a query string.
 //
 // See http://tools.ietf.org/html/rfc5849#section-3.5.2 for
 // information about transmitting OAuth parameters in a request body and
 // http://tools.ietf.org/html/rfc5849#section-3.5.2 for information about
 // transmitting OAuth parameters in a query string.
+func (c *Client) SignForm(credentials *Credentials, method, urlStr string, params url.Values) {
+	u, _ := url.Parse(urlStr)
+	if u.RawQuery != "" {
+		panic("urlStr argument to SignForm must not include a query string.")
+	}
+	for k, v := range oauthParams(&c.Credentials, credentials, method, u, params) {
+		params.Set(k, v)
+	}
+}
+
+// SignParam is deprecated. Use SignForm instead. 
 func (c *Client) SignParam(credentials *Credentials, method, urlStr string, params url.Values) {
 	u, _ := url.Parse(urlStr)
 	u.RawQuery = ""
@@ -281,6 +334,31 @@ func (c *Client) AuthorizationHeader(credentials *Credentials, method string, u 
 	buf.Write(encode(p["oauth_token"], false))
 	buf.WriteString(`", oauth_version="1.0"`)
 	return buf.String()
+}
+
+// Get issues a GET to the specified URL with form added as a query string.
+func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	req, err := http.NewRequest("GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	if req.URL.RawQuery != "" {
+		return nil, errors.New("aouth: url must not contain a query string")
+	}
+	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, "GET", req.URL, form))
+	req.URL.RawQuery = form.Encode()
+	return client.Do(req)
+}
+
+// Post issues a POST with the specified form.
+func (c *Client) Post(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	req, err := http.NewRequest("POST", urlStr, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, "POST", req.URL, form))
+	return client.Do(req)
 }
 
 func (c *Client) request(client *http.Client, credentials *Credentials, urlStr string, params url.Values) (*Credentials, url.Values, error) {
@@ -356,6 +434,11 @@ func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalP
 	return c.ResourceOwnerAuthorizationURI + "?" + params.Encode()
 }
 
+/*
+The transport wrappers are commented out because they are inefficient and not
+very helpful. If somebody really needs the wrappers, they can poste this code
+into their own app.
+
 type transport struct {
 	client      *Client
 	credentials *Credentials
@@ -407,3 +490,4 @@ func (c *Client) HTTPClient(credentials *Credentials, baseClient *http.Client) *
 	client.Transport = c.HTTPTransport(credentials, baseClient.Transport)
 	return &client
 }
+*/

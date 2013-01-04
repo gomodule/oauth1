@@ -45,7 +45,7 @@ var (
 
 	configPath = flag.String("config", "config.json", "Path to configuration file")
 	httpAddr   = flag.String("addr", ":8080", "HTTP server address")
-	sign       = flag.String("sign", "SignParam", "'SignParam' or 'Client'")
+	sign       = flag.String("sign", "SignParam", "'SignParam' or 'Form'")
 )
 
 // readConfiguration reads the configuration file from the path specified by
@@ -118,12 +118,8 @@ func getTwitterSignParam(cred *oauth.Credentials, urlStr string, form url.Values
 	return decodeResponse(resp, data)
 }
 
-func getTwitterClient(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
-	if len(form) > 0 {
-		urlStr = urlStr + "?" + form.Encode()
-	}
-	c := oauthClient.HTTPClient(cred, http.DefaultClient)
-	resp, err := c.Get(urlStr)
+func getTwitterForm(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
+	resp, err := oauthClient.Get(http.DefaultClient, cred, urlStr, form)
 	if err != nil {
 		return err
 	}
@@ -144,12 +140,8 @@ func postTwitterSignParam(cred *oauth.Credentials, urlStr string, form url.Value
 	return decodeResponse(resp, data)
 }
 
-func postTwitterClient(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
-	if form == nil {
-		form = make(url.Values)
-	}
-	c := oauthClient.HTTPClient(cred, http.DefaultClient)
-	resp, err := c.PostForm(urlStr, form)
+func postTwitterForm(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
+	resp, err := oauthClient.Post(http.DefaultClient, cred, urlStr, form)
 	if err != nil {
 		return err
 	}
@@ -192,12 +184,12 @@ func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
 	}
-	addCookie(w, "auth", tokenCred, 24*time.Hour)
+	addCookie(w, "twitter", tokenCred, 24*time.Hour)
 	http.Redirect(w, r, "/", 302)
 }
 
 func serveLogout(w http.ResponseWriter, r *http.Request) {
-	addCookie(w, "auth", nil, 0)
+	addCookie(w, "twitter", nil, 0)
 	http.Redirect(w, r, "/", 302)
 }
 
@@ -209,7 +201,7 @@ type authHandler struct {
 
 func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var cred oauth.Credentials
-	if err := getCookie(r, "auth", &cred); err != nil {
+	if err := getCookie(r, "twitter", &cred); err != nil {
 		if err != http.ErrNoCookie {
 			http.Error(w, "Error reading auth cookie, "+err.Error(), 500)
 			return
@@ -294,9 +286,9 @@ func main() {
 	case "SignParam":
 		getTwitter = getTwitterSignParam
 		postTwitter = postTwitterSignParam
-	case "Client":
-		getTwitter = getTwitterClient
-		postTwitter = postTwitterClient
+	case "Form":
+		getTwitter = getTwitterForm
+		postTwitter = postTwitterForm
 	default:
 		log.Fatalf("bad valud for sign flag, %q", *sign)
 	}
