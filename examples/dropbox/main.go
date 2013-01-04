@@ -15,8 +15,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -25,82 +23,55 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
+	"sync"
 	"text/template"
 	"time"
 )
 
-var (
-	oauthClient = oauth.Client{
-		TemporaryCredentialRequestURI: "https://api.dropbox.com/1/oauth/request_token",
-		ResourceOwnerAuthorizationURI: "https://www.dropbox.com/1/oauth/authorize",
-		TokenRequestURI:               "https://api.dropbox.com/1/oauth/access_token",
-	}
+var oauthClient = oauth.Client{
+	TemporaryCredentialRequestURI: "https://api.dropbox.com/1/oauth/request_token",
+	ResourceOwnerAuthorizationURI: "https://www.dropbox.com/1/oauth/authorize",
+	TokenRequestURI:               "https://api.dropbox.com/1/oauth/access_token",
+}
 
-	config = struct {
-		Credentials *oauth.Credentials
-	}{
-		&oauthClient.Credentials,
-	}
+var credPath = flag.String("config", "config.json", "Path to configuration file containing the application's credentials.")
 
-	configPath = flag.String("config", "config.json", "Path to configuration file")
-	httpAddr   = flag.String("addr", ":8080", "HTTP server address")
-)
-
-// readConfiguration reads the configuration file from the path specified by
-// the config command line flag.
-func readConfiguration() error {
-	b, err := ioutil.ReadFile(*configPath)
+func readCredentials() error {
+	b, err := ioutil.ReadFile(*credPath)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(b, &config)
+	return json.Unmarshal(b, &oauthClient.Credentials)
 }
 
-// addCookie adds a cookie to the response. The cookie value is the base64
-// encoding of the json encoding of data. If data is nil, then the cookie is
-// deleted. 
-func addCookie(w http.ResponseWriter, name string, data interface{}, maxAge time.Duration) error {
-	c := http.Cookie{
-		Name:     name,
-		Path:     "/",
-		HttpOnly: true,
+var (
+	// secrets maps credential tokens to credential secrets. A real application will use a database to store credentials. 
+	secretsMutex sync.Mutex
+	secrets      = map[string]string{}
+)
+
+func putCredentials(cred *oauth.Credentials) {
+	secretsMutex.Lock()
+	defer secretsMutex.Unlock()
+	secrets[cred.Token] = cred.Secret
+}
+
+func getCredentials(token string) *oauth.Credentials {
+	secretsMutex.Lock()
+	defer secretsMutex.Unlock()
+	if secret, ok := secrets[token]; ok {
+		return &oauth.Credentials{Token: token, Secret: secret}
 	}
-	if data == nil {
-		maxAge = -10000 * time.Second
-	} else {
-		var b bytes.Buffer
-		if err := json.NewEncoder(&b).Encode(data); err != nil {
-			return err
-		}
-		c.Value = base64.URLEncoding.EncodeToString(b.Bytes())
-	}
-	if maxAge != 0 {
-		c.MaxAge = int(maxAge / time.Second)
-		c.Expires = time.Now().Add(maxAge)
-	}
-	http.SetCookie(w, &c)
 	return nil
 }
 
-// getCookie gets a base64 and json encoded value from a cookie.  
-func getCookie(r *http.Request, name string, value interface{}) error {
-	c, err := r.Cookie(name)
-	if err != nil {
-		return err
-	}
-	return json.NewDecoder(base64.NewDecoder(base64.URLEncoding, strings.NewReader(c.Value))).Decode(value)
+func deleteCredentials(token string) {
+	secretsMutex.Lock()
+	defer secretsMutex.Unlock()
+	delete(secrets, token)
 }
 
-// respond responds to a request by executing the html template t with data.
-func respond(w http.ResponseWriter, t *template.Template, data interface{}) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := t.Execute(w, data); err != nil {
-		log.Print(err)
-	}
-}
-
-// serveLogin gets the OAuth temp credentials and redirects the user the
+// serveLogin gets the OAuth temp credentials and redirects the user to the
 // OAuth server's authorization page.
 func serveLogin(w http.ResponseWriter, r *http.Request) {
 	// Dropbox supports the older OAuth 1.0 specification where the callback URL
@@ -111,30 +82,42 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
 	}
-	addCookie(w, "temp", tempCred.Secret, 0)
+	putCredentials(tempCred)
 	http.Redirect(w, r, oauthClient.AuthorizationURL(tempCred, url.Values{"oauth_callback": {callback}}), 302)
 }
 
 // serveOAuthCallback handles callbacks from the OAuth server.
 func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
-	tempCred := oauth.Credentials{
-		Token: r.FormValue("oauth_token"),
-	}
-	if err := getCookie(r, "temp", &tempCred.Secret); err != nil {
-		http.Error(w, "Error getting temp token secret from cookie, "+err.Error(), 500)
+	tempCred := getCredentials(r.FormValue("oauth_token"))
+	if tempCred == nil {
+		http.Error(w, "Unknown oauth_token.", 500)
 		return
 	}
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, &tempCred, r.FormValue("oauth_verifier"))
+	deleteCredentials(tempCred.Token)
+	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
 	}
-	addCookie(w, "auth", tokenCred, 24*time.Hour)
+	putCredentials(tokenCred)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth",
+		Path:     "/",
+		HttpOnly: true,
+		Value:    tokenCred.Token,
+	})
 	http.Redirect(w, r, "/", 302)
 }
 
+// serveLogout clears the authentication cookie.
 func serveLogout(w http.ResponseWriter, r *http.Request) {
-	addCookie(w, "auth", nil, 0)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+		Expires:  time.Now().Add(-1 * time.Hour),
+	})
 	http.Redirect(w, r, "/", 302)
 }
 
@@ -145,26 +128,23 @@ type authHandler struct {
 }
 
 func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var cred oauth.Credentials
-	if err := getCookie(r, "auth", &cred); err != nil {
-		if err != http.ErrNoCookie {
-			http.Error(w, "Error reading auth cookie, "+err.Error(), 500)
-			return
-		}
-		cred.Token = ""
+	var cred *oauth.Credentials
+	if c, _ := r.Cookie("auth"); c != nil {
+		cred = getCredentials(c.Value)
 	}
-
-	var pcred *oauth.Credentials
-	if cred.Token != "" && cred.Secret != "" {
-		pcred = &cred
-	}
-
-	if pcred == nil && !h.optional {
+	if cred == nil && !h.optional {
 		http.Error(w, "Not logged in.", 403)
 		return
 	}
+	h.handler(w, r, cred)
+}
 
-	h.handler(w, r, pcred)
+// respond responds to a request by executing the html template t with data.
+func respond(w http.ResponseWriter, t *template.Template, data interface{}) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := t.Execute(w, data); err != nil {
+		log.Print(err)
+	}
 }
 
 func serveHome(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
@@ -180,10 +160,7 @@ func serveHome(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) 
 }
 
 func serveInfo(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
-	params := make(url.Values)
-	const urlStr = "https://api.dropbox.com/1/account/info"
-	oauthClient.SignParam(cred, "GET", urlStr, params)
-	resp, err := http.Get(urlStr + "?" + params.Encode())
+	resp, err := oauthClient.Get(http.DefaultClient, cred, "https://api.dropbox.com/1/account/info", nil)
 	if err != nil {
 		http.Error(w, "Error getting info: "+err.Error(), 500)
 		return
@@ -195,16 +172,18 @@ func serveInfo(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) 
 		return
 	}
 	if resp.StatusCode != 200 {
-		http.Error(w, fmt.Sprintf("Get %s returned status %d, %s", urlStr, resp.StatusCode, b), 500)
+		http.Error(w, fmt.Sprintf("Get account/info returned status %d, %s", resp.StatusCode, b), 500)
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(b)
 }
 
+var httpAddr = flag.String("addr", ":8080", "HTTP server address")
+
 func main() {
 	flag.Parse()
-	if err := readConfiguration(); err != nil {
+	if err := readCredentials(); err != nil {
 		log.Fatalf("Error reading configuration, %v", err)
 	}
 	http.Handle("/", &authHandler{handler: serveHome, optional: true})

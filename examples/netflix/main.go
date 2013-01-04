@@ -1,4 +1,4 @@
-// Copyright 2011 Gary Burd
+// Copyright 2013 Gary Burd
 //
 // Licensed under the Apache License, Version 2.0 (the "License"): you may
 // not use this file except in compliance with the License. You may obtain
@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/garyburd/go-oauth/oauth"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -29,9 +30,9 @@ import (
 )
 
 var oauthClient = oauth.Client{
-	TemporaryCredentialRequestURI: "http://api.twitter.com/oauth/request_token",
-	ResourceOwnerAuthorizationURI: "http://api.twitter.com/oauth/authenticate",
-	TokenRequestURI:               "http://api.twitter.com/oauth/access_token",
+	TemporaryCredentialRequestURI: "http://api-public.netflix.com/oauth/request_token",
+	ResourceOwnerAuthorizationURI: "http://api-user.netflix.com/oauth/login",
+	TokenRequestURI:               "http://api-public.netflix.com/oauth/access_token",
 }
 
 var credPath = flag.String("config", "config.json", "Path to configuration file containing the application's credentials.")
@@ -45,7 +46,8 @@ func readCredentials() error {
 }
 
 var (
-	// secrets maps credential tokens to credential secrets. A real application will use a database to store credentials. 
+	// secrets maps credential tokens to credential secrets. A real application
+	// will use a database to store credentials. 
 	secretsMutex sync.Mutex
 	secrets      = map[string]string{}
 )
@@ -75,13 +77,21 @@ func deleteCredentials(token string) {
 // OAuth server's authorization page.
 func serveLogin(w http.ResponseWriter, r *http.Request) {
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, "", nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
 	}
 	putCredentials(tempCred)
-	http.Redirect(w, r, oauthClient.AuthorizationURL(tempCred, nil), 302)
+
+	// Netflix uses the older version of OAuth where the callback URL is passed
+	// to the server in the redirect URL query string. Netflix also expectes to
+	// find the client token in the redirectURL query string.
+	params := url.Values{
+		"oauth_callback":     {callback},
+		"oauth_consumer_key": {oauthClient.Credentials.Token},
+	}
+	http.Redirect(w, r, oauthClient.AuthorizationURL(tempCred, params), 302)
 }
 
 // serveOAuthCallback handles callbacks from the OAuth server.
@@ -137,7 +147,7 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler(w, r, cred)
 }
 
-// apiGet issues a GET request to the Twitter API and decodes the response JSON to data.
+// apiGet issues a GET request to the Netflix API and decodes the response JSON to data.
 func apiGet(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
 	resp, err := oauthClient.Get(http.DefaultClient, cred, urlStr, form)
 	if err != nil {
@@ -147,7 +157,7 @@ func apiGet(cred *oauth.Credentials, urlStr string, form url.Values, data interf
 	return decodeResponse(resp, data)
 }
 
-// apiPost issues a POST request to the Twitter API and decodes the response JSON to data.
+// apiPost issues a POST request to the Netflix API and decodes the response JSON to data.
 func apiPost(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
 	resp, err := oauthClient.Post(http.DefaultClient, cred, urlStr, form)
 	if err != nil {
@@ -157,7 +167,7 @@ func apiPost(cred *oauth.Credentials, urlStr string, form url.Values, data inter
 	return decodeResponse(resp, data)
 }
 
-// decodeResponse decodes the JSON response from the Twitter API.
+// decodeResponse decodes the JSON response from the Netflix API.
 func decodeResponse(resp *http.Response, data interface{}) error {
 	if resp.StatusCode != 200 {
 		p, _ := ioutil.ReadAll(resp.Body)
@@ -186,43 +196,30 @@ func serveHome(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) 
 	}
 }
 
-func serveTimeline(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
-	var timeline []map[string]interface{}
-	if err := apiGet(
-		cred,
-		"http://api.twitter.com/1/statuses/home_timeline.json",
-		nil,
-		&timeline); err != nil {
-		http.Error(w, "Error getting timeline, "+err.Error(), 500)
+func serveCurrentUser(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
+	resp, err := oauthClient.Get(http.DefaultClient, cred, "http://api-public.netflix.com/users/current", nil)
+	if err != nil {
+		http.Error(w, "Error getting current user, "+err.Error(), 500)
 		return
 	}
-	respond(w, timelineTmpl, timeline)
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	io.Copy(w, resp.Body)
 }
 
-func serveMessages(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
-	var dms []map[string]interface{}
-	if err := apiGet(
-		cred,
-		"http://api.twitter.com/1/direct_messages.json",
-		nil,
-		&dms); err != nil {
-		http.Error(w, "Error getting timeline, "+err.Error(), 500)
+func serveCatalogTitles(w http.ResponseWriter, r *http.Request) {
+	resp, err := oauthClient.Get(
+		http.DefaultClient,
+		nil, // nil client signature only.
+		"http://api-public.netflix.com/catalog/titles",
+		url.Values{"term": {"koyaanisqatsi"}})
+	if err != nil {
+		http.Error(w, "Error getting catalog title, "+err.Error(), 500)
 		return
 	}
-	respond(w, messagesTmpl, dms)
-}
-
-func serveFollow(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
-	var profile map[string]interface{}
-	if err := apiPost(
-		cred,
-		"https://api.twitter.com/1.1/friendships/create.json",
-		url.Values{"screen_name": {"gburd"}, "follow": {"true"}},
-		&profile); err != nil {
-		http.Error(w, "Error following, "+err.Error(), 500)
-		return
-	}
-	respond(w, followTmpl, profile)
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	io.Copy(w, resp.Body)
 }
 
 var httpAddr = flag.String("addr", ":8080", "HTTP server address")
@@ -234,9 +231,8 @@ func main() {
 	}
 
 	http.Handle("/", &authHandler{handler: serveHome, optional: true})
-	http.Handle("/timeline", &authHandler{handler: serveTimeline})
-	http.Handle("/messages", &authHandler{handler: serveMessages})
-	http.Handle("/follow", &authHandler{handler: serveFollow})
+	http.Handle("/currentUser", &authHandler{handler: serveCurrentUser})
+	http.Handle("/catalogTitles", http.HandlerFunc(serveCatalogTitles))
 	http.HandleFunc("/login", serveLogin)
 	http.HandleFunc("/logout", serveLogout)
 	http.HandleFunc("/callback", serveOAuthCallback)
@@ -251,7 +247,8 @@ var (
 <head>
 </head>
 <body>
-<a href="/login"><img src="http://a0.twimg.com/images/dev/buttons/sign-in-with-twitter-d.png"></a>
+<p><a href="/login">login</a>
+<p><a href="/catalogTitles">catalog titles</a> (signed request example)
 </body>
 </html>`))
 
@@ -260,40 +257,8 @@ var (
 <head>
 </head>
 <body>
-<p><a href="/timeline">timeline</a>
-<p><a href="/messages">direct messages</a>
-<p><a href="/follow">follow @gburd</a>
+<p><a href="/currentUser">current user</a> (protected request example)
+<p><a href="/catalogTitles">catalog titles</a> (signed request example)
 <p><a href="/logout">logout</a>
-</body></html>`))
-
-	messagesTmpl = template.Must(template.New("messages").Parse(
-		`<html>
-<head>
-</head>
-<body>
-<p><a href="/">home</a>
-{{range .}}
-<p><b>{{html .sender.name}}</b> {{html .text}}
-{{end}}
-</body></html>`))
-
-	timelineTmpl = template.Must(template.New("timeline").Parse(
-		`<html>
-<head>
-</head>
-<body>
-<p><a href="/">home</a>
-{{range .}}
-<p><b>{{html .user.name}}</b> {{html .text}}
-{{end}}
-</body></html>`))
-
-	followTmpl = template.Must(template.New("follow").Parse(
-		`<html>
-<head>
-</head>
-<body>
-<p><a href="/">home</a>
-<p>You are now following <a href="https://twitter.com/{{html .screen_name}}">{{html .name}}</a>
 </body></html>`))
 )

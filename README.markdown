@@ -15,5 +15,6 @@ Go-OAuth is available under the [Apache License, Version 2.0](http://www.apache.
 ## Documentation
     
 - [Reference](http://gopkgdoc.appspot.com/pkg/github.com/garyburd/go-oauth/oauth)
-- [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) - Login to Twitter with OAuth and display home timeline. 
-- [Dropbox Example](http://github.com/garyburd/go-oauth/tree/master/examples/dropbox) - Login to Dropbox and display account info. 
+- [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter)
+- [Dropbox Example](http://github.com/garyburd/go-oauth/tree/master/examples/dropbox)
+- [Netflix Example](http://github.com/garyburd/go-oauth/tree/master/examples/netflix)

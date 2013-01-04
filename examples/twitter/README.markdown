@@ -1,6 +1,6 @@
-This example shows how to use the Go-OAuth package to display a user's timeline on Twitter.
+This example shows how to use the oauth package with Twitter.
 
-How run this example:
+To run this example:
 
 1. Register an application at https://dev.twitter.com/apps/new
 2. $ cp config.json.example config.json.

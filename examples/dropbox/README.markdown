@@ -1,6 +1,6 @@
-This example shows how to use the Go-OAuth package to display a user's account information on Dropbox.
+This example shows how to use the oauth package with Dropbox.
 
-How run this example:
+To run this example:
 
 1. Register an application at https://www.dropbox.com/developers/apps
 2. $ cp config.json.example config.json.

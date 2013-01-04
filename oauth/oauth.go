@@ -330,8 +330,10 @@ func (c *Client) AuthorizationHeader(credentials *Credentials, method string, u 
 	buf.Write(encode(p["oauth_signature"], false))
 	buf.WriteString(`", oauth_signature_method="HMAC-SHA1", oauth_timestamp="`)
 	buf.Write(encode(p["oauth_timestamp"], false))
-	buf.WriteString(`", oauth_token="`)
-	buf.Write(encode(p["oauth_token"], false))
+	if t, ok := p["oauth_token"]; ok {
+		buf.WriteString(`", oauth_token="`)
+		buf.Write(encode(t, false))
+	}
 	buf.WriteString(`", oauth_version="1.0"`)
 	return buf.String()
 }
