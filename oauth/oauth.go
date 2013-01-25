@@ -14,7 +14,7 @@
 
 // Package oauth implements a subset of the OAuth client interface as defined
 // in RFC 5849.
-// 
+//
 // Redirection-based authorization
 //
 // This section outlines how to use the oauth package in redirection-based
@@ -305,7 +305,7 @@ func (c *Client) SignForm(credentials *Credentials, method, urlStr string, param
 	}
 }
 
-// SignParam is deprecated. Use SignForm instead. 
+// SignParam is deprecated. Use SignForm instead.
 func (c *Client) SignParam(credentials *Credentials, method, urlStr string, params url.Values) {
 	u, _ := url.Parse(urlStr)
 	u.RawQuery = ""
@@ -315,7 +315,7 @@ func (c *Client) SignParam(credentials *Credentials, method, urlStr string, para
 }
 
 // AuthorizationHeader returns the HTTP authorization header value for given
-// method, URL and parameters. 
+// method, URL and parameters.
 //
 // See http://tools.ietf.org/html/rfc5849#section-3.5.1 for information about
 // transmitting OAuth parameters in an HTTP request header.
@@ -377,21 +377,19 @@ func (c *Client) request(client *http.Client, credentials *Credentials, urlStr s
 	if resp.StatusCode != 200 {
 		return nil, nil, fmt.Errorf("OAuth server status %d, %s", resp.StatusCode, string(p))
 	}
-	vals, err := url.ParseQuery(string(p))
+	m, err := url.ParseQuery(string(p))
 	if err != nil {
 		return nil, nil, err
 	}
-	credentials = &Credentials{
-		Token:  vals.Get("oauth_token"),
-		Secret: vals.Get("oauth_token_secret"),
-	}
-	if credentials.Token == "" {
+	tokens := m["oauth_token"]
+	if len(tokens) == 0 || tokens[0] == "" {
 		return nil, nil, errors.New("No OAuth token in server result")
 	}
-	if credentials.Secret == "" {
+	secrets := m["oauth_token_secret"]
+	if len(secrets) == 0 { // allow "" as a valid secret.
 		return nil, nil, errors.New("No OAuth secret in server result")
 	}
-	return credentials, vals, nil
+	return &Credentials{Token: tokens[0], Secret: secrets[0]}, m, nil
 }
 
 // RequestTemporaryCredentials requests temporary credentials from the server.

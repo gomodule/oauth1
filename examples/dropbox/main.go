@@ -45,7 +45,7 @@ func readCredentials() error {
 }
 
 var (
-	// secrets maps credential tokens to credential secrets. A real application will use a database to store credentials. 
+	// secrets maps credential tokens to credential secrets. A real application will use a database to store credentials.
 	secretsMutex sync.Mutex
 	secrets      = map[string]string{}
 )
