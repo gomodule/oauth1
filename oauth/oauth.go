@@ -363,7 +363,7 @@ func (c *Client) Post(client *http.Client, credentials *Credentials, urlStr stri
 	return client.Do(req)
 }
 
-func (c *Client) request(client *http.Client, credentials *Credentials, urlStr string, params url.Values) (*Credentials, url.Values, error) {
+func (c *Client) request(client *http.Client, credentials *Credentials, urlStr string, allowEmptySecret bool, params url.Values) (*Credentials, url.Values, error) {
 	c.SignParam(credentials, "POST", urlStr, params)
 	resp, err := client.PostForm(urlStr, params)
 	if err != nil {
@@ -388,7 +388,7 @@ func (c *Client) request(client *http.Client, credentials *Credentials, urlStr s
 	if credentials.Token == "" {
 		return nil, nil, errors.New("No OAuth token in server result")
 	}
-	if credentials.Secret == "" {
+	if credentials.Secret == "" && !allowEmptySecret {
 		return nil, nil, errors.New("No OAuth secret in server result")
 	}
 	return credentials, vals, nil
@@ -405,19 +405,19 @@ func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL st
 	if callbackURL != "" {
 		params.Set("oauth_callback", callbackURL)
 	}
-	credentials, _, err := c.request(client, nil, c.TemporaryCredentialRequestURI, params)
+	credentials, _, err := c.request(client, nil, c.TemporaryCredentialRequestURI, false, params)
 	return credentials, err
 }
 
 // RequestToken requests token credentials from the server. See
 // http://tools.ietf.org/html/rfc5849#section-2.3 for information about token
 // credentials.
-func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
+func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string, allowEmptySecret bool) (*Credentials, url.Values, error) {
 	params := make(url.Values)
 	if verifier != "" {
 		params.Set("oauth_verifier", verifier)
 	}
-	credentials, vals, err := c.request(client, temporaryCredentials, c.TokenRequestURI, params)
+	credentials, vals, err := c.request(client, temporaryCredentials, c.TokenRequestURI, allowEmptySecret, params)
 	if err != nil {
 		return nil, nil, err
 	}
