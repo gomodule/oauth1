@@ -22,7 +22,7 @@
 //
 // Step 1: Create a Client using credentials and URIs provided by the server.
 // The Client can be initialized once at application startup and stored in a
-// package level-variable.
+// package-level variable.
 //
 // Step 2: Request temporary credentials using the Client
 // RequestTemporaryCredentials method. The callbackURL parameter is the URL of
@@ -48,9 +48,9 @@
 // authenticated request by encoding the modified form to the query string or
 // request body. The AuthorizationHeader method returns an Authorization header
 // value with the OAuth signature. The application makes an authenticated
-// request adding the Authorization header to the request. Most servers support
-// both form and header authentication. Use the method that's most convenient
-// for the application.
+// request by adding the Authorization header to the request. Most servers
+// support both form and header authentication. Use the method that's most
+// convenient for the application.
 //
 // The Get and Post methods sign and invoke a request using the supplied
 // net/http Client. These methods are easy to use, but not as flexible as
