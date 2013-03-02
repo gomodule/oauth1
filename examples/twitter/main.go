@@ -30,9 +30,11 @@ import (
 
 var oauthClient = oauth.Client{
 	TemporaryCredentialRequestURI: "http://api.twitter.com/oauth/request_token",
-	ResourceOwnerAuthorizationURI: "http://api.twitter.com/oauth/authenticate",
+	ResourceOwnerAuthorizationURI: "http://api.twitter.com/oauth/authorize",
 	TokenRequestURI:               "http://api.twitter.com/oauth/access_token",
 }
+
+var signinOAuthClient oauth.Client
 
 var credPath = flag.String("config", "config.json", "Path to configuration file containing the application's credentials.")
 
@@ -71,9 +73,22 @@ func deleteCredentials(token string) {
 	delete(secrets, token)
 }
 
-// serveLogin gets the OAuth temp credentials and redirects the user to the
-// OAuth server's authorization page.
-func serveLogin(w http.ResponseWriter, r *http.Request) {
+// serveSignin gets the OAuth temp credentials and redirects the user to the
+// Twitter's authentication page.
+func serveSignin(w http.ResponseWriter, r *http.Request) {
+	callback := "http://" + r.Host + "/callback"
+	tempCred, err := signinOAuthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	if err != nil {
+		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
+		return
+	}
+	putCredentials(tempCred)
+	http.Redirect(w, r, signinOAuthClient.AuthorizationURL(tempCred, nil), 302)
+}
+
+// serveAuthorize gets the OAuth temp credentials and redirects the user to the
+// Twitter's authorization page.
+func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 	callback := "http://" + r.Host + "/callback"
 	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
 	if err != nil {
@@ -233,11 +248,16 @@ func main() {
 		log.Fatalf("Error reading configuration, %v", err)
 	}
 
+	// Use a different auth URL for "Sign in with Twitter."
+	signinOAuthClient = oauthClient
+	signinOAuthClient.ResourceOwnerAuthorizationURI = "http://api.twitter.com/oauth/authenticate"
+
 	http.Handle("/", &authHandler{handler: serveHome, optional: true})
 	http.Handle("/timeline", &authHandler{handler: serveTimeline})
 	http.Handle("/messages", &authHandler{handler: serveMessages})
 	http.Handle("/follow", &authHandler{handler: serveFollow})
-	http.HandleFunc("/login", serveLogin)
+	http.HandleFunc("/signin", serveSignin)
+	http.HandleFunc("/authorize", serveAuthorize)
 	http.HandleFunc("/logout", serveLogout)
 	http.HandleFunc("/callback", serveOAuthCallback)
 	if err := http.ListenAndServe(*httpAddr, nil); err != nil {
@@ -251,7 +271,8 @@ var (
 <head>
 </head>
 <body>
-<a href="/login"><img src="http://a0.twimg.com/images/dev/buttons/sign-in-with-twitter-d.png"></a>
+<a href="/authorize">Authorize</a> or
+<a href="/signin"><img src="http://a0.twimg.com/images/dev/buttons/sign-in-with-twitter-d.png"></a>
 </body>
 </html>`))
 
