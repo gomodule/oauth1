@@ -374,7 +374,7 @@ func (c *Client) request(client *http.Client, credentials *Credentials, urlStr s
 	if err != nil {
 		return nil, nil, err
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		return nil, nil, fmt.Errorf("OAuth server status %d, %s", resp.StatusCode, string(p))
 	}
 	m, err := url.ParseQuery(string(p))
