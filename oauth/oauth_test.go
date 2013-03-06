@@ -110,6 +110,30 @@ var oauthTests = []struct {
 		"GET&http%3A%2F%2Fexample.com%2FSpace%2520Craft&name%3Dvalue%26name%3Dvalue%26oauth_consumer_key%3Dabcd%26oauth_nonce%3DIx4U1Ei3RFL%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1327384901%26oauth_token%3Dijkl%26oauth_version%3D1.0",
 		`OAuth oauth_consumer_key="abcd", oauth_nonce="Ix4U1Ei3RFL", oauth_signature="TZZ5u7qQorLnmKs%2Biqunb8gqkh4%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1327384901", oauth_token="ijkl", oauth_version="1.0"`,
 	},
+	{
+		// Test "/" in form value.
+		"POST",
+		parseURL("https://stream.twitter.com/1.1/statuses/filter.json"),
+		url.Values{"track": {"example.com/abcd"}},
+		"bf2cb6d611e59f99103238fc9a3bb8d8",
+		"1362434376",
+		Credentials{"consumer_key", "consumer_secret"},
+		Credentials{"token", "secret"},
+		"POST&https%3A%2F%2Fstream.twitter.com%2F1.1%2Fstatuses%2Ffilter.json&oauth_consumer_key%3Dconsumer_key%26oauth_nonce%3Dbf2cb6d611e59f99103238fc9a3bb8d8%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1362434376%26oauth_token%3Dtoken%26oauth_version%3D1.0%26track%3Dexample.com%252Fabcd",
+		`OAuth oauth_consumer_key="consumer_key", oauth_nonce="bf2cb6d611e59f99103238fc9a3bb8d8", oauth_signature="LcxylEOnNdgoKSJi7jX07mxcvfM%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1362434376", oauth_token="token", oauth_version="1.0"`,
+	},
+	{
+		// Test "/" in query string
+		"POST",
+		parseURL("https://stream.twitter.com/1.1/statuses/filter.json?track=example.com/query"),
+		url.Values{},
+		"884275759fbab914654b50ae643c563a",
+		"1362435218",
+		Credentials{"consumer_key", "consumer_secret"},
+		Credentials{"token", "secret"},
+		"POST&https%3A%2F%2Fstream.twitter.com%2F1.1%2Fstatuses%2Ffilter.json&oauth_consumer_key%3Dconsumer_key%26oauth_nonce%3D884275759fbab914654b50ae643c563a%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1362435218%26oauth_token%3Dtoken%26oauth_version%3D1.0%26track%3Dexample.com%252Fquery",
+		`OAuth oauth_consumer_key="consumer_key", oauth_nonce="884275759fbab914654b50ae643c563a", oauth_signature="OAldqvRrKDXRGZ9BqSi2CqeVH0g%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1362435218", oauth_token="token", oauth_version="1.0"`,
+	},
 }
 
 func TestBaseString(t *testing.T) {
