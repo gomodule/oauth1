@@ -12,8 +12,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package oauth implements a subset of the OAuth client interface as defined
-// in RFC 5849.
+// Package oauth implements the OAuth client interface defined in RFC 5849.
 //
 // Redirection-based authorization
 //
@@ -43,14 +42,18 @@
 //
 // Making authenticated requests
 //
-// The Client type has two low-level methods for signing requests. The SignForm
-// method adds an OAuth signature to a form. The application makes an
-// authenticated request by encoding the modified form to the query string or
-// request body. The AuthorizationHeader method returns an Authorization header
-// value with the OAuth signature. The application makes an authenticated
-// request by adding the Authorization header to the request. Most servers
-// support both form and header authentication. Use the method that's most
-// convenient for the application.
+// The Client type has two low-level methods for signing requests, SignForm and
+// AuthorizationHeader.
+//
+// The SignForm method adds an OAuth signature to a form. The application makes
+// an authenticated request by encoding the modified form to the query string
+// or request body.
+//
+// The AuthorizationHeader method returns an Authorization header value with
+// the OAuth signature. The application makes an authenticated request by
+// adding the Authorization header to the request. The AuthorizationHeader
+// method is the only way to correctly sign a request if the application sets
+// the URL Opaque field when making a request.
 //
 // The Get and Post methods sign and invoke a request using the supplied
 // net/http Client. These methods are easy to use, but not as flexible as
@@ -345,7 +348,7 @@ func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr strin
 		return nil, err
 	}
 	if req.URL.RawQuery != "" {
-		return nil, errors.New("aouth: url must not contain a query string")
+		return nil, errors.New("oauth: url must not contain a query string")
 	}
 	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, "GET", req.URL, form))
 	req.URL.RawQuery = form.Encode()
@@ -383,11 +386,11 @@ func (c *Client) request(client *http.Client, credentials *Credentials, urlStr s
 	}
 	tokens := m["oauth_token"]
 	if len(tokens) == 0 || tokens[0] == "" {
-		return nil, nil, errors.New("No OAuth token in server result")
+		return nil, nil, errors.New("oauth: token missing from server result")
 	}
 	secrets := m["oauth_token_secret"]
 	if len(secrets) == 0 { // allow "" as a valid secret.
-		return nil, nil, errors.New("No OAuth secret in server result")
+		return nil, nil, errors.New("oauth: secret mssing from server result")
 	}
 	return &Credentials{Token: tokens[0], Secret: secrets[0]}, m, nil
 }
