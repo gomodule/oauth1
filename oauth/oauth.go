@@ -298,14 +298,18 @@ var (
 // information about transmitting OAuth parameters in a request body and
 // http://tools.ietf.org/html/rfc5849#section-3.5.2 for information about
 // transmitting OAuth parameters in a query string.
-func (c *Client) SignForm(credentials *Credentials, method, urlStr string, params url.Values) {
-	u, _ := url.Parse(urlStr)
-	if u.RawQuery != "" {
-		panic("urlStr argument to SignForm must not include a query string.")
+func (c *Client) SignForm(credentials *Credentials, method, urlStr string, form url.Values) error {
+	u, err := url.Parse(urlStr)
+	switch {
+	case err != nil:
+		return err
+	case u.RawQuery != "":
+		return errors.New("oauth: urlStr argument to SignForm must not include a query string.")
 	}
-	for k, v := range oauthParams(&c.Credentials, credentials, method, u, params) {
-		params.Set(k, v)
+	for k, v := range oauthParams(&c.Credentials, credentials, method, u, form) {
+		form.Set(k, v)
 	}
+	return nil
 }
 
 // SignParam is deprecated. Use SignForm instead.
