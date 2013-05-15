@@ -14,7 +14,7 @@
 
 // Package oauth implements the OAuth client interface defined in RFC 5849.
 //
-// Redirection-based authorization
+// Redirection-based Authorization
 //
 // This section outlines how to use the oauth package in redirection-based
 // authorization (http://tools.ietf.org/html/rfc5849#section-2).
@@ -40,7 +40,7 @@
 // secret and verifier, request token credentials using the client RequestToken
 // method. Save the returned credentials for later use in the application.
 //
-// Making authenticated requests
+// Signing Requests
 //
 // The Client type has two low-level methods for signing requests, SignForm and
 // AuthorizationHeader.
