@@ -12,7 +12,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package oauth implements the OAuth client interface defined in RFC 5849.
+// Package oauth is consumer interface for OAuth 1.0, OAuth 1.0a and RFC 5849.
 //
 // Redirection-based Authorization
 //

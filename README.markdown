@@ -1,6 +1,6 @@
 # Go-OAuth
 
-Go-OAuth is a [Go](http://golang.org/) client for the [OAuth 1.0 Protocol](http://tools.ietf.org/html/rfc5849).
+Go-OAuth is a [Go](http://golang.org/) client for the OAuth 1.0, OAuth 1.0a and RFC 5849.
 
 ## Installation
 
