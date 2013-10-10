@@ -304,7 +304,7 @@ func (c *Client) SignForm(credentials *Credentials, method, urlStr string, form 
 	case err != nil:
 		return err
 	case u.RawQuery != "":
-		return errors.New("oauth: urlStr argument to SignForm must not include a query string.")
+		return errors.New("oauth: urlStr argument to SignForm must not include a query string")
 	}
 	for k, v := range oauthParams(&c.Credentials, credentials, method, u, form) {
 		form.Set(k, v)

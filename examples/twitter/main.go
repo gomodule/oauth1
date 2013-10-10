@@ -176,7 +176,7 @@ func apiPost(cred *oauth.Credentials, urlStr string, form url.Values, data inter
 func decodeResponse(resp *http.Response, data interface{}) error {
 	if resp.StatusCode != 200 {
 		p, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf("Get %s returned status %d, %s", resp.Request.URL, resp.StatusCode, p)
+		return fmt.Errorf("get %s returned status %d, %s", resp.Request.URL, resp.StatusCode, p)
 	}
 	return json.NewDecoder(resp.Body).Decode(data)
 }
