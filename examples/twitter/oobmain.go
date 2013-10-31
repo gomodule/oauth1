@@ -65,7 +65,7 @@ func main() {
 	}
 
 	resp, err := oauthClient.Get(http.DefaultClient, tokenCred,
-		"http://api.twitter.com/1/statuses/home_timeline.json", nil)
+		"http://api.twitter.com/1.1/statuses/home_timeline.json", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
