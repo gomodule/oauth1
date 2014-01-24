@@ -29,9 +29,9 @@ import (
 )
 
 var oauthClient = oauth.Client{
-	TemporaryCredentialRequestURI: "http://api.twitter.com/oauth/request_token",
-	ResourceOwnerAuthorizationURI: "http://api.twitter.com/oauth/authorize",
-	TokenRequestURI:               "http://api.twitter.com/oauth/access_token",
+	TemporaryCredentialRequestURI: "https://api.twitter.com/oauth/request_token",
+	ResourceOwnerAuthorizationURI: "https://api.twitter.com/oauth/authorize",
+	TokenRequestURI:               "https://api.twitter.com/oauth/access_token",
 }
 
 var signinOAuthClient oauth.Client
@@ -205,7 +205,7 @@ func serveTimeline(w http.ResponseWriter, r *http.Request, cred *oauth.Credentia
 	var timeline []map[string]interface{}
 	if err := apiGet(
 		cred,
-		"http://api.twitter.com/1/statuses/home_timeline.json",
+		"https://api.twitter.com/1.1/statuses/home_timeline.json",
 		nil,
 		&timeline); err != nil {
 		http.Error(w, "Error getting timeline, "+err.Error(), 500)
@@ -218,7 +218,7 @@ func serveMessages(w http.ResponseWriter, r *http.Request, cred *oauth.Credentia
 	var dms []map[string]interface{}
 	if err := apiGet(
 		cred,
-		"http://api.twitter.com/1/direct_messages.json",
+		"https://api.twitter.com/1.1/direct_messages.json",
 		nil,
 		&dms); err != nil {
 		http.Error(w, "Error getting timeline, "+err.Error(), 500)
@@ -250,7 +250,7 @@ func main() {
 
 	// Use a different auth URL for "Sign in with Twitter."
 	signinOAuthClient = oauthClient
-	signinOAuthClient.ResourceOwnerAuthorizationURI = "http://api.twitter.com/oauth/authenticate"
+	signinOAuthClient.ResourceOwnerAuthorizationURI = "https://api.twitter.com/oauth/authenticate"
 
 	http.Handle("/", &authHandler{handler: serveHome, optional: true})
 	http.Handle("/timeline", &authHandler{handler: serveTimeline})
