@@ -15,7 +15,8 @@ Go-OAuth is available under the [Apache License, Version 2.0](http://www.apache.
 ## Documentation
     
 - [Reference](http://godoc.org/github.com/garyburd/go-oauth/oauth)
-- [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter)
 - [Dropbox Example](http://github.com/garyburd/go-oauth/tree/master/examples/dropbox)
 - [Netflix Example](http://github.com/garyburd/go-oauth/tree/master/examples/netflix)
 - [SmugMug Example](https://github.com/garyburd/go-oauth/tree/master/examples/smugmug)
+- [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) 
+- [Twitter Example on App Engine](http://github.com/garyburd/go-oauth/tree/master/examples/appengine) 
