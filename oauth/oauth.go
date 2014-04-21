@@ -359,15 +359,29 @@ func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr strin
 	return client.Do(req)
 }
 
-// Post issues a POST with the specified form.
-func (c *Client) Post(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	req, err := http.NewRequest("POST", urlStr, strings.NewReader(form.Encode()))
+func (c *Client) do(client *http.Client, method string, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	req, err := http.NewRequest(method, urlStr, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, "POST", req.URL, form))
+	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, method, req.URL, form))
 	return client.Do(req)
+}
+
+// Post issues a POST with the specified form.
+func (c *Client) Post(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(client, "POST", credentials, urlStr, form)
+}
+
+// Delete issues a DELETE with the specified form.
+func (c *Client) Delete(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(client, "DELETE", credentials, urlStr, form)
+}
+
+// Put issues a PUT with the specified form.
+func (c *Client) Put(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(client, "PUT", credentials, urlStr, form)
 }
 
 func (c *Client) request(client *http.Client, credentials *Credentials, urlStr string, params url.Values) (*Credentials, url.Values, error) {
