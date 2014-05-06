@@ -408,7 +408,7 @@ func (c *Client) request(client *http.Client, credentials *Credentials, urlStr s
 	}
 	secrets := m["oauth_token_secret"]
 	if len(secrets) == 0 { // allow "" as a valid secret.
-		return nil, nil, errors.New("oauth: secret mssing from server result")
+		return nil, nil, errors.New("oauth: secret missing from server result")
 	}
 	return &Credentials{Token: tokens[0], Secret: secrets[0]}, m, nil
 }
