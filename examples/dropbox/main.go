@@ -213,5 +213,6 @@ var (
 <body>
 <p><a href="/info">info</a>
 <p><a href="/logout">logout</a>
-</body>`))
+</body>
+</html>`))
 )
