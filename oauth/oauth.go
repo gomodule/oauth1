@@ -275,9 +275,10 @@ func oauthParams(clientCredentials *Credentials, credentials *Credentials, metho
 // Client represents an OAuth client.
 type Client struct {
 	Credentials                   Credentials
-	TemporaryCredentialRequestURI string // Also known as request token URL.
-	ResourceOwnerAuthorizationURI string // Also known as authorization URL.
-	TokenRequestURI               string // Also known as access token URL.
+	TemporaryCredentialRequestURI string      // Also known as request token URL.
+	ResourceOwnerAuthorizationURI string      // Also known as authorization URL.
+	TokenRequestURI               string      // Also known as access token URL.
+	Header                        http.Header // Optional extra headers for requests.
 }
 
 // Credentials represents client, temporary and token credentials.
@@ -354,6 +355,9 @@ func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr strin
 	if req.URL.RawQuery != "" {
 		return nil, errors.New("oauth: url must not contain a query string")
 	}
+	for k, v := range c.Header {
+		req.Header[k] = v
+	}
 	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, "GET", req.URL, form))
 	req.URL.RawQuery = form.Encode()
 	return client.Do(req)
@@ -363,6 +367,9 @@ func (c *Client) do(client *http.Client, method string, credentials *Credentials
 	req, err := http.NewRequest(method, urlStr, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
+	}
+	for k, v := range c.Header {
+		req.Header[k] = v
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, method, req.URL, form))
