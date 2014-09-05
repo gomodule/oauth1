@@ -134,6 +134,18 @@ var oauthTests = []struct {
 		"POST&https%3A%2F%2Fstream.twitter.com%2F1.1%2Fstatuses%2Ffilter.json&oauth_consumer_key%3Dconsumer_key%26oauth_nonce%3D884275759fbab914654b50ae643c563a%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1362435218%26oauth_token%3Dtoken%26oauth_version%3D1.0%26track%3Dexample.com%252Fquery",
 		`OAuth oauth_consumer_key="consumer_key", oauth_nonce="884275759fbab914654b50ae643c563a", oauth_signature="OAldqvRrKDXRGZ9BqSi2CqeVH0g%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1362435218", oauth_token="token", oauth_version="1.0"`,
 	},
+	{
+		// Test quickbooks query string
+		"GET",
+		parseURL("https://qb.sbfinance.intuit.com/v3/company/1273852765/query"),
+		url.Values{"query": {"select * from account"}},
+		"12345678",
+		"1409876517",
+		Credentials{"consumer_key", "consumer_secret"},
+		Credentials{"token", "secret"},
+		"GET&https%3A%2F%2Fqb.sbfinance.intuit.com%2Fv3%2Fcompany%2F1273852765%2Fquery&oauth_consumer_key%3Dconsumer_key%26oauth_nonce%3D12345678%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1409876517%26oauth_token%3Dtoken%26oauth_version%3D1.0%26query%3Dselect%2520%252A%2520from%2520account",
+		`OAuth oauth_consumer_key="consumer_key", oauth_nonce="12345678", oauth_signature="7crYee%2BJLvg7dksQiHbarUHN3rY%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1409876517", oauth_token="token", oauth_version="1.0"`,
+	},
 }
 
 func TestBaseString(t *testing.T) {
