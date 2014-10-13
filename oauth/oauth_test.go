@@ -182,3 +182,11 @@ func TestAuthorizationHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestNonce(t *testing.T) {
+	// This test is flaky, but failures should be very rare.
+	n := nonce()
+	if len(n) < 8 {
+		t.Fatalf("nonce is %s, exected something longer", n)
+	}
+}

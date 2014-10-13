@@ -76,7 +76,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -215,21 +215,17 @@ func writeBaseString(w io.Writer, method string, u *url.URL, form url.Values, oa
 	}
 }
 
-var (
-	nonceLock    sync.Mutex
-	nonceCounter uint64
-)
+var nonceCounter uint64
 
 // nonce returns a unique string.
 func nonce() string {
-	nonceLock.Lock()
-	defer nonceLock.Unlock()
-	if nonceCounter == 0 {
-		binary.Read(rand.Reader, binary.BigEndian, &nonceCounter)
+	n := atomic.AddUint64(&nonceCounter, 1)
+	if n == 1 {
+		binary.Read(rand.Reader, binary.BigEndian, &n)
+		n ^= uint64(time.Now().UnixNano())
+		atomic.CompareAndSwapUint64(&nonceCounter, 1, n)
 	}
-	result := strconv.FormatUint(nonceCounter, 16)
-	nonceCounter += 1
-	return result
+	return strconv.FormatUint(n, 16)
 }
 
 // oauthParams returns the OAuth request parameters for the given credentials,
