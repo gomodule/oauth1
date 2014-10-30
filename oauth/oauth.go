@@ -58,7 +58,7 @@
 // The Get and Post methods sign and invoke a request using the supplied
 // net/http Client. These methods are easy to use, but not as flexible as
 // constructing a request using one of the low-level methods.
-package oauth
+package oauth // import "github.com/garyburd/go-oauth/oauth"
 
 import (
 	"bytes"
