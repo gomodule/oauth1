@@ -32,6 +32,7 @@ var oauthClient = oauth.Client{
 	TemporaryCredentialRequestURI: "https://api.dropbox.com/1/oauth/request_token",
 	ResourceOwnerAuthorizationURI: "https://www.dropbox.com/1/oauth/authorize",
 	TokenRequestURI:               "https://api.dropbox.com/1/oauth/access_token",
+	SignatureMethod:               oauth.PLAINTEXT, // Dropbox also works with HMACSHA1
 }
 
 var credPath = flag.String("config", "config.json", "Path to configuration file containing the application's credentials.")

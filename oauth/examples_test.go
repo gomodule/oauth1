@@ -24,7 +24,7 @@ import (
 // This example shows how to sign a request when the URL Opaque field is used.
 // See the note at http://golang.org/pkg/net/url/#URL for information on the
 // use of the URL Opaque field.
-func ExampleClient_AuthorizationHeader(client *oauth.Client, credentials *oauth.Credentials) error {
+func ExampleClient_SetAuthorizationHeader(client *oauth.Client, credentials *oauth.Credentials) error {
 	form := url.Values{"maxResults": {"100"}}
 
 	// The last element of path contains a "/".
@@ -40,7 +40,9 @@ func ExampleClient_AuthorizationHeader(client *oauth.Client, credentials *oauth.
 	req.URL.Opaque = path
 
 	// Sign the request.
-	req.Header.Set("Authorization", client.AuthorizationHeader(credentials, "GET", req.URL, form))
+	if err := client.SetAuthorizationHeader(req.Header, credentials, "GET", req.URL, form); err != nil {
+		return err
+	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

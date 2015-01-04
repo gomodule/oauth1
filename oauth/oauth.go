@@ -43,27 +43,28 @@
 // Signing Requests
 //
 // The Client type has two low-level methods for signing requests, SignForm and
-// AuthorizationHeader.
+// SetAuthorizationHeader.
 //
 // The SignForm method adds an OAuth signature to a form. The application makes
 // an authenticated request by encoding the modified form to the query string
 // or request body.
 //
-// The AuthorizationHeader method returns an Authorization header value with
-// the OAuth signature. The application makes an authenticated request by
-// adding the Authorization header to the request. The AuthorizationHeader
-// method is the only way to correctly sign a request if the application sets
-// the URL Opaque field when making a request.
+// The SetAuthorizationHeader method adds an OAuth siganture to a request
+// header. The SetAuthorizationHeader method is the only way to correctly sign
+// a request if the application sets the URL Opaque field when making a
+// request.
 //
-// The Get and Post methods sign and invoke a request using the supplied
-// net/http Client. These methods are easy to use, but not as flexible as
-// constructing a request using one of the low-level methods.
+// The Get, Put, Post and Delete methods sign and invoke a request using the
+// supplied net/http Client. These methods are easy to use, but not as flexible
+// as constructing a request using one of the low-level methods.
 package oauth // import "github.com/garyburd/go-oauth/oauth"
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
@@ -102,7 +103,7 @@ func encode(s string, double bool) []byte {
 	n := 0
 	for i := 0; i < len(s); i++ {
 		if noEscape[s[i]] {
-			n += 1
+			n++
 		} else {
 			n += m
 		}
@@ -116,7 +117,7 @@ func encode(s string, double bool) []byte {
 		b := s[i]
 		if noEscape[b] {
 			p[j] = b
-			j += 1
+			j++
 		} else if double {
 			p[j] = '%'
 			p[j+1] = '2'
@@ -228,54 +229,27 @@ func nonce() string {
 	return strconv.FormatUint(n, 16)
 }
 
-// oauthParams returns the OAuth request parameters for the given credentials,
-// method, URL and application params. See
-// http://tools.ietf.org/html/rfc5849#section-3.4 for more information about
-// signatures.
-func oauthParams(clientCredentials *Credentials, credentials *Credentials, method string, u *url.URL, form url.Values) map[string]string {
-	oauthParams := map[string]string{
-		"oauth_consumer_key":     clientCredentials.Token,
-		"oauth_signature_method": "HMAC-SHA1",
-		"oauth_timestamp":        strconv.FormatInt(time.Now().Unix(), 10),
-		"oauth_version":          "1.0",
-		"oauth_nonce":            nonce(),
-	}
-	if credentials != nil {
-		oauthParams["oauth_token"] = credentials.Token
-	}
-	if testingNonce != "" {
-		oauthParams["oauth_nonce"] = testingNonce
-	}
-	if testingTimestamp != "" {
-		oauthParams["oauth_timestamp"] = testingTimestamp
-	}
+// SignatureMethod identifies a signature method.
+type SignatureMethod int
 
-	var key bytes.Buffer
-	key.Write(encode(clientCredentials.Secret, false))
-	key.WriteByte('&')
-	if credentials != nil {
-		key.Write(encode(credentials.Secret, false))
+func (sm SignatureMethod) String() string {
+	switch sm {
+	case RSASHA1:
+		return "RSA-SHA1"
+	case HMACSHA1:
+		return "HMAC-SHA1"
+	case PLAINTEXT:
+		return "PLAINTEXT"
+	default:
+		return "unknown"
 	}
-
-	h := hmac.New(sha1.New, key.Bytes())
-	writeBaseString(h, method, u, form, oauthParams)
-	sum := h.Sum(nil)
-
-	encodedSum := make([]byte, base64.StdEncoding.EncodedLen(len(sum)))
-	base64.StdEncoding.Encode(encodedSum, sum)
-
-	oauthParams["oauth_signature"] = string(encodedSum)
-	return oauthParams
 }
 
-// Client represents an OAuth client.
-type Client struct {
-	Credentials                   Credentials
-	TemporaryCredentialRequestURI string      // Also known as request token URL.
-	ResourceOwnerAuthorizationURI string      // Also known as authorization URL.
-	TokenRequestURI               string      // Also known as access token URL.
-	Header                        http.Header // Optional extra headers for requests.
-}
+const (
+	HMACSHA1  SignatureMethod = iota // HMAC-SHA1
+	RSASHA1                          // RSA-SHA1
+	PLAINTEXT                        // Plain text
+)
 
 // Credentials represents client, temporary and token credentials.
 type Credentials struct {
@@ -283,10 +257,100 @@ type Credentials struct {
 	Secret string // Also known as consumer secret or access token secret.
 }
 
-var (
-	testingTimestamp string
-	testingNonce     string
-)
+// Client represents an OAuth client.
+type Client struct {
+	// Credentials specifies the client key and secret.
+	// Also known as the consumer key and secret
+	Credentials Credentials
+
+	// TemporaryCredentialRequestURI is the endpoint used by the client to
+	// obtain a set of temporary credentials. Also known as the request token
+	// URL.
+	TemporaryCredentialRequestURI string
+
+	// ResourceOwnerAuthorizationURI is the endpoint to which the resource
+	// owner is redirected to grant authorization. Also known as authorization
+	// URL.
+	ResourceOwnerAuthorizationURI string
+
+	// TokenRequestURI is the endpoint used by the client to request a set of
+	// token credentials using a set of temporary credentials. Also known as
+	// access token URL.
+	TokenRequestURI string
+
+	// Header specifies optional extra headers for requests.
+	Header http.Header
+
+	// SignatureMethod specifies the method for signing a request.
+	SignatureMethod SignatureMethod
+
+	// PrivateKey is the private key to use for RSA-SHA1 signatures. This field
+	// must be set for RSA-SHA1 signatures and ignored for other signature
+	// methods.
+	PrivateKey *rsa.PrivateKey
+}
+
+var testHook = func(map[string]string) {}
+
+// oauthParams returns the OAuth request parameters for the given credentials,
+// method, URL and application params. See
+// http://tools.ietf.org/html/rfc5849#section-3.4 for more information about
+// signatures.
+func (c *Client) oauthParams(credentials *Credentials, method string, u *url.URL, form url.Values) (map[string]string, error) {
+	oauthParams := map[string]string{
+		"oauth_consumer_key":     c.Credentials.Token,
+		"oauth_signature_method": c.SignatureMethod.String(),
+		"oauth_version":          "1.0",
+	}
+
+	if c.SignatureMethod != PLAINTEXT {
+		oauthParams["oauth_timestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
+		oauthParams["oauth_nonce"] = nonce()
+	}
+
+	if credentials != nil {
+		oauthParams["oauth_token"] = credentials.Token
+	}
+
+	testHook(oauthParams)
+
+	var signature string
+
+	switch c.SignatureMethod {
+	case HMACSHA1:
+		key := encode(c.Credentials.Secret, false)
+		key = append(key, '&')
+		if credentials != nil {
+			key = append(key, encode(credentials.Secret, false)...)
+		}
+		h := hmac.New(sha1.New, key)
+		writeBaseString(h, method, u, form, oauthParams)
+		signature = base64.StdEncoding.EncodeToString(h.Sum(key[:0]))
+	case RSASHA1:
+		if c.PrivateKey == nil {
+			return nil, errors.New("oauth: private key not set")
+		}
+		h := sha1.New()
+		writeBaseString(h, method, u, form, oauthParams)
+		rawSignature, err := rsa.SignPKCS1v15(rand.Reader, c.PrivateKey, crypto.SHA1, h.Sum(nil))
+		if err != nil {
+			return nil, err
+		}
+		signature = base64.StdEncoding.EncodeToString(rawSignature)
+	case PLAINTEXT:
+		rawSignature := encode(c.Credentials.Secret, false)
+		rawSignature = append(rawSignature, '&')
+		if credentials != nil {
+			rawSignature = append(rawSignature, encode(credentials.Secret, false)...)
+		}
+		signature = string(rawSignature)
+	default:
+		return nil, errors.New("oauth: unknown signature method")
+	}
+
+	oauthParams["oauth_signature"] = signature
+	return oauthParams, nil
+}
 
 // SignForm adds an OAuth signature to form. The urlStr argument must not
 // include a query string.
@@ -303,7 +367,11 @@ func (c *Client) SignForm(credentials *Credentials, method, urlStr string, form 
 	case u.RawQuery != "":
 		return errors.New("oauth: urlStr argument to SignForm must not include a query string")
 	}
-	for k, v := range oauthParams(&c.Credentials, credentials, method, u, form) {
+	p, err := c.oauthParams(credentials, method, u, form)
+	if err != nil {
+		return err
+	}
+	for k, v := range p {
 		form.Set(k, v)
 	}
 	return nil
@@ -313,33 +381,65 @@ func (c *Client) SignForm(credentials *Credentials, method, urlStr string, form 
 func (c *Client) SignParam(credentials *Credentials, method, urlStr string, params url.Values) {
 	u, _ := url.Parse(urlStr)
 	u.RawQuery = ""
-	for k, v := range oauthParams(&c.Credentials, credentials, method, u, params) {
+	p, _ := c.oauthParams(credentials, method, u, params)
+	for k, v := range p {
 		params.Set(k, v)
 	}
+}
+
+var oauthKeys = []string{
+	"oauth_consumer_key",
+	"oauth_nonce",
+	"oauth_signature",
+	"oauth_signature_method",
+	"oauth_timestamp",
+	"oauth_token",
+	"oauth_version",
+}
+
+func (c *Client) authorizationHeader(credentials *Credentials, method string, u *url.URL, params url.Values) (string, error) {
+	p, err := c.oauthParams(credentials, method, u, params)
+	if err != nil {
+		return "", err
+	}
+	h := []byte(`OAuth `)
+	// Append parameters in a fixed order to support testing.
+	for i, k := range oauthKeys {
+		if v, ok := p[k]; ok {
+			if i != 0 {
+				h = append(h, ", "...)
+			}
+			h = append(h, k...)
+			h = append(h, `="`...)
+			h = append(h, encode(v, false)...)
+			h = append(h, '"')
+		}
+	}
+	return string(h), nil
 }
 
 // AuthorizationHeader returns the HTTP authorization header value for given
 // method, URL and parameters.
 //
+// AuthorizationHeader is deprecated. Use SetAuthorizationHeader instead.
+func (c *Client) AuthorizationHeader(credentials *Credentials, method string, u *url.URL, params url.Values) string {
+	// Signing a request can return an error. This method is deprecated because
+	// this method does not return an error.
+	v, _ := c.authorizationHeader(credentials, method, u, params)
+	return v
+}
+
+// SetAuthorizationHeader adds an OAuth signature to a request header.
+//
 // See http://tools.ietf.org/html/rfc5849#section-3.5.1 for information about
 // transmitting OAuth parameters in an HTTP request header.
-func (c *Client) AuthorizationHeader(credentials *Credentials, method string, u *url.URL, params url.Values) string {
-	p := oauthParams(&c.Credentials, credentials, method, u, params)
-	var buf bytes.Buffer
-	buf.WriteString(`OAuth oauth_consumer_key="`)
-	buf.Write(encode(p["oauth_consumer_key"], false))
-	buf.WriteString(`", oauth_nonce="`)
-	buf.Write(encode(p["oauth_nonce"], false))
-	buf.WriteString(`", oauth_signature="`)
-	buf.Write(encode(p["oauth_signature"], false))
-	buf.WriteString(`", oauth_signature_method="HMAC-SHA1", oauth_timestamp="`)
-	buf.Write(encode(p["oauth_timestamp"], false))
-	if t, ok := p["oauth_token"]; ok {
-		buf.WriteString(`", oauth_token="`)
-		buf.Write(encode(t, false))
+func (c *Client) SetAuthorizationHeader(header http.Header, credentials *Credentials, method string, u *url.URL, params url.Values) error {
+	v, err := c.authorizationHeader(credentials, method, u, params)
+	if err != nil {
+		return err
 	}
-	buf.WriteString(`", oauth_version="1.0"`)
-	return buf.String()
+	header.Set("Authorization", v)
+	return nil
 }
 
 // Get issues a GET to the specified URL with form added as a query string.
@@ -354,7 +454,9 @@ func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr strin
 	for k, v := range c.Header {
 		req.Header[k] = v
 	}
-	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, "GET", req.URL, form))
+	if err := c.SetAuthorizationHeader(req.Header, credentials, "GET", req.URL, form); err != nil {
+		return nil, err
+	}
 	req.URL.RawQuery = form.Encode()
 	return client.Do(req)
 }
@@ -368,7 +470,9 @@ func (c *Client) do(client *http.Client, method string, credentials *Credentials
 		req.Header[k] = v
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", c.AuthorizationHeader(credentials, method, req.URL, form))
+	if err := c.SetAuthorizationHeader(req.Header, credentials, method, req.URL, form); err != nil {
+		return nil, err
+	}
 	return client.Do(req)
 }
 
@@ -387,7 +491,7 @@ func (c *Client) Put(client *http.Client, credentials *Credentials, urlStr strin
 	return c.do(client, "PUT", credentials, urlStr, form)
 }
 
-func (c *Client) request(client *http.Client, credentials *Credentials, urlStr string, params url.Values) (*Credentials, url.Values, error) {
+func (c *Client) requestCredentials(client *http.Client, credentials *Credentials, urlStr string, params url.Values) (*Credentials, url.Values, error) {
 	c.SignParam(credentials, "POST", urlStr, params)
 	resp, err := client.PostForm(urlStr, params)
 	if err != nil {
@@ -427,7 +531,7 @@ func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL st
 	if callbackURL != "" {
 		params.Set("oauth_callback", callbackURL)
 	}
-	credentials, _, err := c.request(client, nil, c.TemporaryCredentialRequestURI, params)
+	credentials, _, err := c.requestCredentials(client, nil, c.TemporaryCredentialRequestURI, params)
 	return credentials, err
 }
 
@@ -439,7 +543,7 @@ func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credent
 	if verifier != "" {
 		params.Set("oauth_verifier", verifier)
 	}
-	credentials, vals, err := c.request(client, temporaryCredentials, c.TokenRequestURI, params)
+	credentials, vals, err := c.requestCredentials(client, temporaryCredentials, c.TokenRequestURI, params)
 	if err != nil {
 		return nil, nil, err
 	}
