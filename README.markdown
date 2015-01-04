@@ -1,14 +1,14 @@
 # Go-OAuth
 
-Go-OAuth is a [Go](http://golang.org/) client for the OAuth 1.0, OAuth 1.0a and RFC 5849.
+Go-OAuth is a [Go](http://golang.org/) client for the OAuth 1.0, OAuth 1.0a and
+[RFC 5849](https://tools.ietf.org/html/rfc5849) Protocols. The package supports
+HMAC-SHA1, RSA-SHA1 and PLAINTEXT signatures.
 
 ## Installation
 
-Use the [go tool](http://weekly.golang.org/cmd/go/) to install Go-OAuth:
-
     go get github.com/garyburd/go-oauth/oauth
 
-##License
+## License
 
 Go-OAuth is available under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html).
 
@@ -20,5 +20,5 @@ Go-OAuth is available under the [Apache License, Version 2.0](http://www.apache.
 - [Netflix Example](http://github.com/garyburd/go-oauth/tree/master/examples/netflix)
 - [Quickbooks Example](http://github.com/garyburd/go-oauth/tree/master/examples/quickbooks)
 - [SmugMug Example](https://github.com/garyburd/go-oauth/tree/master/examples/smugmug)
-- [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) 
+- [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) (including a command line application using OOB).
 - [Twitter Example on App Engine](http://github.com/garyburd/go-oauth/tree/master/examples/appengine) 
