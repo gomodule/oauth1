@@ -402,11 +402,13 @@ func (c *Client) authorizationHeader(credentials *Credentials, method string, u 
 	if err != nil {
 		return "", err
 	}
-	h := []byte(`OAuth `)
+	var h []byte
 	// Append parameters in a fixed order to support testing.
-	for i, k := range oauthKeys {
+	for _, k := range oauthKeys {
 		if v, ok := p[k]; ok {
-			if i != 0 {
+			if h == nil {
+				h = []byte(`OAuth `)
+			} else {
 				h = append(h, ", "...)
 			}
 			h = append(h, k...)
