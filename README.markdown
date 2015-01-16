@@ -15,11 +15,11 @@ Go-OAuth is available under the [Apache License, Version 2.0](http://www.apache.
 ## Documentation
     
 - [Reference](http://godoc.org/github.com/garyburd/go-oauth/oauth)
-- [Discogs Example](http://github.com/garyburd/go-oauth/tree/master/examples/discogs)
-- [Dropbox Example](http://github.com/garyburd/go-oauth/tree/master/examples/dropbox)
-- [Netflix Example](http://github.com/garyburd/go-oauth/tree/master/examples/netflix)
-- [Quickbooks Example](http://github.com/garyburd/go-oauth/tree/master/examples/quickbooks)
-- [SmugMug Example](https://github.com/garyburd/go-oauth/tree/master/examples/smugmug)
-- [Twitter Example](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) (including a command line application using OOB authorization).
-- [Twitter Example on App Engine](http://github.com/garyburd/go-oauth/tree/master/examples/appengine) 
-- [Yelp Example](https://github.com/garyburd/go-oauth/tree/master/examples/yelp)
+- Examples
+    - [Discogs](http://github.com/garyburd/go-oauth/tree/master/examples/discogs)
+    - [Dropbox](http://github.com/garyburd/go-oauth/tree/master/examples/dropbox)
+    - [Quickbooks](http://github.com/garyburd/go-oauth/tree/master/examples/quickbooks)
+    - [SmugMug](https://github.com/garyburd/go-oauth/tree/master/examples/smugmug)
+    - [Twitter on App Engine](http://github.com/garyburd/go-oauth/tree/master/examples/appengine) 
+    - [Twitter](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) (including a command line application using OOB authorization).
+    - [Yelp](https://github.com/garyburd/go-oauth/tree/master/examples/yelp)
