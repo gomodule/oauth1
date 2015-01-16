@@ -77,7 +77,7 @@ func deleteCredentials(token string) {
 // Twitter's authentication page.
 func serveSignin(w http.ResponseWriter, r *http.Request) {
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := signinOAuthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	tempCred, err := signinOAuthClient.RequestTemporaryCredentials(nil, callback, nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
@@ -90,7 +90,7 @@ func serveSignin(w http.ResponseWriter, r *http.Request) {
 // Twitter's authorization page.
 func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(nil, callback, nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
@@ -107,7 +107,7 @@ func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deleteCredentials(tempCred.Token)
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, tempCred, r.FormValue("oauth_verifier"))
+	tokenCred, _, err := oauthClient.RequestToken(nil, tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
@@ -154,7 +154,7 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // apiGet issues a GET request to the Twitter API and decodes the response JSON to data.
 func apiGet(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
-	resp, err := oauthClient.Get(http.DefaultClient, cred, urlStr, form)
+	resp, err := oauthClient.Get(nil, cred, urlStr, form)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func apiGet(cred *oauth.Credentials, urlStr string, form url.Values, data interf
 
 // apiPost issues a POST request to the Twitter API and decodes the response JSON to data.
 func apiPost(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
-	resp, err := oauthClient.Post(http.DefaultClient, cred, urlStr, form)
+	resp, err := oauthClient.Post(nil, cred, urlStr, form)
 	if err != nil {
 		return err
 	}

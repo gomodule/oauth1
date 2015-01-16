@@ -460,6 +460,9 @@ func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr strin
 		return nil, err
 	}
 	req.URL.RawQuery = form.Encode()
+	if client == nil {
+		client = http.DefaultClient
+	}
 	return client.Do(req)
 }
 
@@ -474,6 +477,9 @@ func (c *Client) do(client *http.Client, method string, credentials *Credentials
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if err := c.SetAuthorizationHeader(req.Header, credentials, method, req.URL, form); err != nil {
 		return nil, err
+	}
+	if client == nil {
+		client = http.DefaultClient
 	}
 	return client.Do(req)
 }
@@ -493,9 +499,8 @@ func (c *Client) Put(client *http.Client, credentials *Credentials, urlStr strin
 	return c.do(client, "PUT", credentials, urlStr, form)
 }
 
-func (c *Client) requestCredentials(client *http.Client, credentials *Credentials, urlStr string, params url.Values) (*Credentials, url.Values, error) {
-	c.SignParam(credentials, "POST", urlStr, params)
-	resp, err := client.PostForm(urlStr, params)
+func (c *Client) requestCredentials(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*Credentials, url.Values, error) {
+	resp, err := c.Post(client, credentials, urlStr, form)
 	if err != nil {
 		return nil, nil, err
 	}
