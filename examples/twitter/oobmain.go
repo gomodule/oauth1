@@ -27,9 +27,9 @@ import (
 )
 
 var oauthClient = oauth.Client{
-	TemporaryCredentialRequestURI: "http://api.twitter.com/oauth/request_token",
-	ResourceOwnerAuthorizationURI: "http://api.twitter.com/oauth/authorize",
-	TokenRequestURI:               "http://api.twitter.com/oauth/access_token",
+	TemporaryCredentialRequestURI: "https://api.twitter.com/oauth/request_token",
+	ResourceOwnerAuthorizationURI: "https://api.twitter.com/oauth/authorize",
+	TokenRequestURI:               "https://api.twitter.com/oauth/access_token",
 }
 
 var credPath = flag.String("config", "config.json", "Path to configuration file containing the application's credentials.")
@@ -65,7 +65,7 @@ func main() {
 	}
 
 	resp, err := oauthClient.Get(http.DefaultClient, tokenCred,
-		"http://api.twitter.com/1.1/statuses/home_timeline.json", nil)
+		"https://api.twitter.com/1.1/statuses/home_timeline.json", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
