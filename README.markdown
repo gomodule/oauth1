@@ -1,5 +1,7 @@
 # Go-OAuth
 
+[![Join the chat at https://gitter.im/garyburd/go-oauth](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/garyburd/go-oauth?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Go-OAuth is a [Go](http://golang.org/) client for the OAuth 1.0, OAuth 1.0a and
 [RFC 5849](https://tools.ietf.org/html/rfc5849) Protocols. The package supports
 HMAC-SHA1, RSA-SHA1 and PLAINTEXT signatures.
