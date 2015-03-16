@@ -78,7 +78,7 @@ func deleteCredentials(token string) {
 // Discogs' authorization page.
 func serveLogin(w http.ResponseWriter, r *http.Request) {
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(nil, callback, nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
@@ -95,7 +95,7 @@ func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deleteCredentials(tempCred.Token)
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, tempCred, r.FormValue("oauth_verifier"))
+	tokenCred, _, err := oauthClient.RequestToken(nil, tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
@@ -142,7 +142,7 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // getJSON gets a resource from the Discogs API server and decodes the result as JSON.
 func getJSON(cred *oauth.Credentials, endpoint string, form url.Values, v interface{}) error {
-	resp, err := oauthClient.Get(http.DefaultClient, cred, "https://api.discogs.com"+endpoint, form)
+	resp, err := oauthClient.Get(nil, cred, "https://api.discogs.com"+endpoint, form)
 	if err != nil {
 		return err
 	}

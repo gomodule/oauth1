@@ -76,7 +76,7 @@ func deleteCredentials(token string) {
 // Quickbooks's authorization page.
 func serveLogin(w http.ResponseWriter, r *http.Request) {
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(nil, callback, nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
@@ -93,7 +93,7 @@ func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deleteCredentials(tempCred.Token)
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, tempCred, r.FormValue("oauth_verifier"))
+	tokenCred, _, err := oauthClient.RequestToken(nil, tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
@@ -140,7 +140,7 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func callAPI(cred *oauth.Credentials, company string, endpoint string, form url.Values, data interface{}) error {
-	resp, err := oauthClient.Get(http.DefaultClient,
+	resp, err := oauthClient.Get(nil,
 		cred,
 		fmt.Sprintf("https://qb.sbfinance.intuit.com/v3/company/%s/%s", company, endpoint),
 		form)

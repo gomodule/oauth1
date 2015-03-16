@@ -78,7 +78,7 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 	// Dropbox supports the older OAuth 1.0 specification where the callback URL
 	// is passed to the authorization endpoint.
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, "", nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(nil, "", nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
@@ -95,7 +95,7 @@ func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deleteCredentials(tempCred.Token)
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, tempCred, r.FormValue("oauth_verifier"))
+	tokenCred, _, err := oauthClient.RequestToken(nil, tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
@@ -161,7 +161,7 @@ func serveHome(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) 
 }
 
 func serveInfo(w http.ResponseWriter, r *http.Request, cred *oauth.Credentials) {
-	resp, err := oauthClient.Get(http.DefaultClient, cred, "https://api.dropbox.com/1/account/info", nil)
+	resp, err := oauthClient.Get(nil, cred, "https://api.dropbox.com/1/account/info", nil)
 	if err != nil {
 		http.Error(w, "Error getting info: "+err.Error(), 500)
 		return

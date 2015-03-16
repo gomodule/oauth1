@@ -47,7 +47,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, "oob", nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(nil, "oob", nil)
 	if err != nil {
 		log.Fatal("RequestTemporaryCredentials:", err)
 	}
@@ -59,12 +59,12 @@ func main() {
 	var code string
 	fmt.Scanln(&code)
 
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, tempCred, code)
+	tokenCred, _, err := oauthClient.RequestToken(nil, tempCred, code)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	resp, err := oauthClient.Get(http.DefaultClient, tokenCred,
+	resp, err := oauthClient.Get(nil, tokenCred,
 		"https://api.twitter.com/1.1/statuses/home_timeline.json", nil)
 	if err != nil {
 		log.Fatal(err)

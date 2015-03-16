@@ -75,7 +75,7 @@ func deleteCredentials(token string) {
 // SmugMug's authorization page.
 func serveLogin(w http.ResponseWriter, r *http.Request) {
 	callback := "http://" + r.Host + "/callback"
-	tempCred, err := oauthClient.RequestTemporaryCredentials(http.DefaultClient, callback, nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(nil, callback, nil)
 	if err != nil {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
@@ -92,7 +92,7 @@ func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deleteCredentials(tempCred.Token)
-	tokenCred, _, err := oauthClient.RequestToken(http.DefaultClient, tempCred, r.FormValue("oauth_verifier"))
+	tokenCred, _, err := oauthClient.RequestToken(nil, tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
@@ -141,7 +141,7 @@ const apiURL = "https://api.smugmug.com/services/api/json/1.3.0/"
 
 // apiGet issues a GET request to the SmugMug API and decodes the response JSON to data.
 func apiGet(cred *oauth.Credentials, form url.Values, data interface{}) error {
-	resp, err := oauthClient.Get(http.DefaultClient, cred, apiURL, form)
+	resp, err := oauthClient.Get(nil, cred, apiURL, form)
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func apiGet(cred *oauth.Credentials, form url.Values, data interface{}) error {
 
 // apiPost issues a POST request to the SmugMug API and decodes the response JSON to data.
 func apiPost(cred *oauth.Credentials, urlStr string, form url.Values, data interface{}) error {
-	resp, err := oauthClient.Post(http.DefaultClient, cred, apiURL, form)
+	resp, err := oauthClient.Post(nil, cred, apiURL, form)
 	if err != nil {
 		return err
 	}
