@@ -22,11 +22,16 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"sync"
 	"text/template"
-	"time"
 
+	"github.com/garyburd/go-oauth/examples/session"
 	"github.com/garyburd/go-oauth/oauth"
+)
+
+// Session state keys.
+const (
+	tempCredKey  = "tempCred"
+	tokenCredKey = "tokenCred"
 )
 
 var oauthClient = oauth.Client{
@@ -46,34 +51,6 @@ func readCredentials() error {
 	return json.Unmarshal(b, &oauthClient.Credentials)
 }
 
-var (
-	// secrets maps tokens to secrets. A real application will use a database
-	// to store credentials.
-	secretsMutex sync.Mutex
-	secrets      = map[string]string{}
-)
-
-func putCredentials(cred *oauth.Credentials) {
-	secretsMutex.Lock()
-	defer secretsMutex.Unlock()
-	secrets[cred.Token] = cred.Secret
-}
-
-func getCredentials(token string) *oauth.Credentials {
-	secretsMutex.Lock()
-	defer secretsMutex.Unlock()
-	if s, ok := secrets[token]; ok {
-		return &oauth.Credentials{Token: token, Secret: s}
-	}
-	return nil
-}
-
-func deleteCredentials(token string) {
-	secretsMutex.Lock()
-	defer secretsMutex.Unlock()
-	delete(secrets, token)
-}
-
 // serveLogin gets the OAuth temp credentials and redirects the user to the
 // Discogs' authorization page.
 func serveLogin(w http.ResponseWriter, r *http.Request) {
@@ -83,42 +60,45 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error getting temp cred, "+err.Error(), 500)
 		return
 	}
-	putCredentials(tempCred)
+	s := session.Get(r)
+	s[tempCredKey] = tempCred
+	if err := session.Save(w, r, s); err != nil {
+		http.Error(w, "Error saving session , "+err.Error(), 500)
+		return
+	}
 	http.Redirect(w, r, oauthClient.AuthorizationURL(tempCred, nil), 302)
 }
 
 // serveOAuthCallback handles callbacks from the OAuth server.
 func serveOAuthCallback(w http.ResponseWriter, r *http.Request) {
-	tempCred := getCredentials(r.FormValue("oauth_token"))
-	if tempCred == nil {
+	s := session.Get(r)
+	tempCred, _ := s[tempCredKey].(*oauth.Credentials)
+	if tempCred == nil || tempCred.Token != r.FormValue("oauth_token") {
 		http.Error(w, "Unknown oauth_token.", 500)
 		return
 	}
-	deleteCredentials(tempCred.Token)
 	tokenCred, _, err := oauthClient.RequestToken(nil, tempCred, r.FormValue("oauth_verifier"))
 	if err != nil {
 		http.Error(w, "Error getting request token, "+err.Error(), 500)
 		return
 	}
-	putCredentials(tokenCred)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth",
-		Path:     "/",
-		HttpOnly: true,
-		Value:    tokenCred.Token,
-	})
+	delete(s, tempCredKey)
+	s[tokenCredKey] = tokenCred
+	if err := session.Save(w, r, s); err != nil {
+		http.Error(w, "Error saving session , "+err.Error(), 500)
+		return
+	}
 	http.Redirect(w, r, "/", 302)
 }
 
-// serveLogout clears the authentication cookie.
+// serveLogout clears the token credentials
 func serveLogout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth",
-		Path:     "/",
-		HttpOnly: true,
-		MaxAge:   -1,
-		Expires:  time.Now().Add(-1 * time.Hour),
-	})
+	s := session.Get(r)
+	delete(s, tokenCredKey)
+	if err := session.Save(w, r, s); err != nil {
+		http.Error(w, "Error saving session , "+err.Error(), 500)
+		return
+	}
 	http.Redirect(w, r, "/", 302)
 }
 
@@ -129,10 +109,7 @@ type authHandler struct {
 }
 
 func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var cred *oauth.Credentials
-	if c, _ := r.Cookie("auth"); c != nil {
-		cred = getCredentials(c.Value)
-	}
+	cred, _ := session.Get(r)[tokenCredKey].(*oauth.Credentials)
 	if cred == nil && !h.optional {
 		http.Error(w, "Not logged in.", 403)
 		return
