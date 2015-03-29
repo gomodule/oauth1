@@ -12,8 +12,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package session implements a session store for the Go-OAuth examples. A real
-// application should not use this package.
+// Package session implements a session store for the Go-OAuth examples.  A
+// real application should not use this package.
 package session
 
 import (
@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"net/http"
 	"sync"
-	"time"
 )
 
 var (
@@ -29,6 +28,7 @@ var (
 	sessions = make(map[string]map[string]interface{})
 )
 
+// Get returns the session data for the request client.
 func Get(r *http.Request) (s map[string]interface{}) {
 	if c, _ := r.Cookie("session"); c != nil && c.Value != "" {
 		mu.Lock()
@@ -41,6 +41,7 @@ func Get(r *http.Request) (s map[string]interface{}) {
 	return s
 }
 
+// Save saves session for the request client.
 func Save(w http.ResponseWriter, r *http.Request, s map[string]interface{}) error {
 	key := ""
 	if c, _ := r.Cookie("session"); c != nil {
@@ -48,13 +49,9 @@ func Save(w http.ResponseWriter, r *http.Request, s map[string]interface{}) erro
 	}
 	if len(s) == 0 {
 		if key != "" {
-			http.SetCookie(w, &http.Cookie{
-				Name:     "session",
-				Path:     "/",
-				HttpOnly: true,
-				MaxAge:   -1,
-				Expires:  time.Now().Add(-24 * time.Hour),
-			})
+			mu.Lock()
+			delete(sessions, key)
+			mu.Unlock()
 		}
 		return nil
 	}
