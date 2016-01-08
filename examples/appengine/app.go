@@ -23,11 +23,11 @@ import (
 
 	"github.com/garyburd/go-oauth/oauth"
 
-	"appengine"
-	"appengine/datastore"
-	"appengine/memcache"
-	"appengine/urlfetch"
-	"appengine/user"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/memcache"
+	"google.golang.org/appengine/urlfetch"
+	"google.golang.org/appengine/user"
 )
 
 var oauthClient = oauth.Client{
