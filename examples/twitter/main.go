@@ -256,7 +256,7 @@ var (
 </head>
 <body>
 <a href="/authorize">Authorize</a> or
-<a href="/signin"><img src="http://a0.twimg.com/images/dev/buttons/sign-in-with-twitter-d.png"></a>
+<a href="/signin"><img src="http://g.twimg.com/dev/sites/default/files/images_documentation/sign-in-with-twitter-gray.png"></a>
 </body>
 </html>`))
 
