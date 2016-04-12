@@ -23,8 +23,11 @@ import (
 
 	"github.com/garyburd/go-oauth/oauth"
 
+	"golang.org/x/net/context"
+
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/log"
 	"google.golang.org/appengine/memcache"
 	"google.golang.org/appengine/urlfetch"
 	"google.golang.org/appengine/user"
@@ -37,19 +40,19 @@ var oauthClient = oauth.Client{
 }
 
 // context stores context associated with an HTTP request.
-type context struct {
-	c appengine.Context
+type Context struct {
+	c context.Context
 	r *http.Request
 	w http.ResponseWriter
 	u *user.User
 }
 
 // handler adapts a function to an http.Handler
-type handler func(c *context) error
+type handler func(c *Context) error
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := appengine.NewContext(r)
-	c := context{
+	c := Context{
 		c: ctx,
 		r: r,
 		w: w,
@@ -65,7 +68,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := h(&c)
 	if err != nil {
 		http.Error(w, "server error", 500)
-		c.c.Errorf("error %v", err)
+		log.Errorf(c.c, "error %v", err)
 	}
 }
 
@@ -75,7 +78,7 @@ type userInfo struct {
 }
 
 // getUserInfo returns information about the currently logged in user.
-func (c *context) getUserInfo() (*userInfo, error) {
+func (c *Context) getUserInfo() (*userInfo, error) {
 	key := datastore.NewKey(c.c, "user", c.u.Email, 0, nil)
 	var u userInfo
 	err := datastore.Get(c.c, key, &u)
@@ -86,9 +89,9 @@ func (c *context) getUserInfo() (*userInfo, error) {
 }
 
 // updateUserInfo updates information about the currently logged in user.
-func (c *context) updateUserInfo(f func(u *userInfo)) error {
+func (c *Context) updateUserInfo(f func(u *userInfo)) error {
 	key := datastore.NewKey(c.c, "user", c.u.Email, 0, nil)
-	return datastore.RunInTransaction(c.c, func(ctx appengine.Context) error {
+	return datastore.RunInTransaction(c.c, func(ctx context.Context) error {
 		var u userInfo
 		err := datastore.Get(ctx, key, &u)
 		if err != nil && err != datastore.ErrNoSuchEntity {
@@ -107,7 +110,7 @@ type connectInfo struct {
 
 // serveTwitterConnect gets the OAuth temp credentials and redirects the user to the
 // Twitter's authorization page.
-func serveTwitterConnect(c *context) error {
+func serveTwitterConnect(c *Context) error {
 	httpClient := urlfetch.Client(c.c)
 	callback := "http://" + c.r.Host + "/twitter/callback"
 	tempCred, err := oauthClient.RequestTemporaryCredentials(httpClient, callback, nil)
@@ -125,7 +128,7 @@ func serveTwitterConnect(c *context) error {
 }
 
 // serveTwitterCallback handles callbacks from the Twitter OAuth server.
-func serveTwitterCallback(c *context) error {
+func serveTwitterCallback(c *Context) error {
 	token := c.r.FormValue("oauth_token")
 	var ci connectInfo
 	_, err := memcache.Gob.Get(c.c, token, &ci)
@@ -152,7 +155,7 @@ func serveTwitterCallback(c *context) error {
 }
 
 // serveTwitterDisconnect clears the user's Twitter credentials.
-func serveTwitterDisconnect(c *context) error {
+func serveTwitterDisconnect(c *Context) error {
 	if err := c.updateUserInfo(func(u *userInfo) { u.TwitterCred = oauth.Credentials{} }); err != nil {
 		return err
 	}
@@ -160,7 +163,7 @@ func serveTwitterDisconnect(c *context) error {
 	return nil
 }
 
-func serveHome(c *context) error {
+func serveHome(c *Context) error {
 	if c.r.URL.Path != "/" {
 		http.NotFound(c.w, c.r)
 		return nil

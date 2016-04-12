@@ -18,12 +18,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/garyburd/go-oauth/oauth"
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
+
+	"github.com/garyburd/go-oauth/oauth"
 )
 
 var oauthClient = oauth.Client{
