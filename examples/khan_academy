@@ -3,14 +3,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/garyburd/go-oauth/oauth"
-	"github.com/kiddom/apiserver/thirdpartytokens"
-
-	errors "github.com/ansel1/merry"
 )
 
 var oauthClient = oauth.Client{
