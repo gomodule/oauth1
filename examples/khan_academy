@@ -1,1 +1,79 @@
+package main
+import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 
+	"github.com/garyburd/go-oauth/oauth"
+	"github.com/kiddom/apiserver/thirdpartytokens"
+
+	errors "github.com/ansel1/merry"
+)
+
+var oauthClient = oauth.Client{
+	TemporaryCredentialRequestURI: "https://www.khanacademy.org/api/auth2/request_token",
+	ResourceOwnerAuthorizationURI: "https://www.khanacademy.org/api/auth2/authorize",
+	TokenRequestURI:               "https://www.khanacademy.org/api/auth2/access_token",
+	Credentials: oauth.Credentials{
+		Token:  os.Getenv("KHAN_CONSUMER_KEY"),
+		Secret: os.Getenv("KHAN_CONSUMER_SECRET"),
+	},
+}
+
+// Exercises URI can retrieve information from Khan Academy API.
+const Exercises = "https://www.khanacademy.org/api/v1/user/exercises/"
+
+
+//GetRequestToken get a RequestToken, and "authorization url".
+func GetRequestToken(r *http.Request, unitAttmptID int64) (string, error) {
+	callbackURL := fmt.Sprintf("http://%s/example",
+		r.Host)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(nil, callbackURL, nil)
+	if err != nil {
+		return "", err
+	}
+	actualURI := oauthClient.AuthorizationURL(tempCred, nil)
+	return actualURI, nil
+
+}
+
+//AuthorizeToken method Redirect the user to the "authorization url".where they will
+// authorize your access to the service provider.
+func AuthorizeToken(oauthToken, oauthTokenSecret,
+	oauthVerifier string) (string, string, error) {
+	tempCred := oauth.Credentials{Token: oauthToken, Secret: oauthTokenSecret}
+	tokenCred, _, err := oauthClient.RequestToken(nil, &tempCred, oauthVerifier)
+	if err != nil {
+		return "", "", errors.Errorf("Error getting request token :%s", err)
+	}
+	oauthToken = tokenCred.Token
+	oauthTokenSecret = tokenCred.Secret
+	return oauthToken, oauthTokenSecret, nil
+}
+
+// GetKhanAcademyExercise request to the Khan academy API to get json.
+//Now that you have your access token,
+//you can make requests to any of the methods that require authentication.
+//You do so by using your OAuth client to make the request, 
+//including the following required OAuth parameters and an appropriate signature.
+func GetKhanAcademyExercise(contentID string) (string, error) {
+	endPoint := fmt.Sprintf("%s%s", Exercises, contentID)
+  oauthToken,oauthSecret = GET_FROM_DB
+	tempCred := oauth.Credentials{Token: oauthToken, Secret: oauthSecret}
+	resp, err := oauthClient.Get(nil, &tempCred, endPoint, nil)
+	if err != nil {
+		return "", errors.Errorf("Error getting info :%s", err)
+	}
+	resbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", errors.Errorf("Error reading body :%s", err)
+	}
+	if resp.StatusCode != 200 {
+		return "", errors.Errorf("Invalid status code :%d", resp.StatusCode)
+	}
+	return string(resbody), nil
+
+}
