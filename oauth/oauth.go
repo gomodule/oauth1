@@ -561,11 +561,9 @@ func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credent
 // See https://dev.twitter.com/oauth/xauth for information on xAuth.
 func (c *Client) RequestTokenXAuth(client *http.Client, temporaryCredentials *Credentials, user, password string) (*Credentials, url.Values, error) {
 	params := make(url.Values)
-	if user != "" && password != "" {
-		params.Set("x_auth_mode", "client_auth")
-		params.Set("x_auth_username", user)
-		params.Set("x_auth_password", password)
-	}
+	params.Set("x_auth_mode", "client_auth")
+	params.Set("x_auth_username", user)
+	params.Set("x_auth_password", password)
 	credentials, vals, err := c.requestCredentials(client, temporaryCredentials, c.TokenRequestURI, params)
 	if err != nil {
 		return nil, nil, err
