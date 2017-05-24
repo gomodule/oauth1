@@ -349,6 +349,9 @@ func (c *Client) oauthParams(credentials *Credentials, method string, u *url.URL
 		return nil, errors.New("oauth: unknown signature method")
 	}
 
+	if len(form["oauth_verifier"]) > 0 {
+		oauthParams["oauth_verifier"] = form["oauth_verifier"][0]
+	}
 	oauthParams["oauth_signature"] = signature
 	return oauthParams, nil
 }
@@ -395,6 +398,7 @@ var oauthKeys = []string{
 	"oauth_signature_method",
 	"oauth_timestamp",
 	"oauth_token",
+	"oauth_verifier",
 	"oauth_version",
 }
 
