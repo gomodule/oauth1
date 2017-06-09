@@ -18,6 +18,9 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/pem"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 )
@@ -255,5 +258,55 @@ func TestNonce(t *testing.T) {
 	n := nonce()
 	if len(n) < 8 {
 		t.Fatalf("nonce is %s, exected something longer", n)
+	}
+}
+
+func TestRequestTokenAnyMethod(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("http method for %s want %s", r.Method, http.MethodGet)
+		}
+		v := url.Values{}
+		v.Set("oauth_token", "token")
+		v.Set("oauth_token_secret", "secret")
+		io.WriteString(w, v.Encode())
+	}))
+	defer ts.Close()
+
+	c := Client{TokenRequestURI: ts.URL}
+	cred, _, err := c.RequestTokenAnyMethod(http.DefaultClient, &Credentials{}, "", http.MethodGet)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	if cred.Token != "token" {
+		t.Errorf("token for %s want %s", cred.Token, "token")
+	}
+	if cred.Secret != "secret" {
+		t.Errorf("secret for %s want %s", cred.Secret, "secret")
+	}
+}
+
+func TestRequestToken(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("http method for %s want %s", r.Method, http.MethodPost)
+		}
+		v := url.Values{}
+		v.Set("oauth_token", "token")
+		v.Set("oauth_token_secret", "secret")
+		io.WriteString(w, v.Encode())
+	}))
+	defer ts.Close()
+
+	c := Client{TokenRequestURI: ts.URL}
+	cred, _, err := c.RequestToken(http.DefaultClient, &Credentials{}, "")
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	if cred.Token != "token" {
+		t.Errorf("token for %s want %s", cred.Token, "token")
+	}
+	if cred.Secret != "secret" {
+		t.Errorf("secret for %s want %s", cred.Secret, "secret")
 	}
 }

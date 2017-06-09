@@ -524,7 +524,9 @@ func (c *Client) Put(client *http.Client, credentials *Credentials, urlStr strin
 }
 
 func (c *Client) requestCredentials(client *http.Client, u string, r *request) (*Credentials, url.Values, error) {
-	r.method = "POST"
+	if r.method == "" {
+		r.method = "POST"
+	}
 	resp, err := c.do(client, u, r)
 	if err != nil {
 		return nil, nil, err
@@ -565,6 +567,11 @@ func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL st
 // credentials.
 func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
 	return c.requestCredentials(client, c.TokenRequestURI, &request{credentials: temporaryCredentials, verifier: verifier})
+}
+
+// RequestTokenAnyMethod is a RequestToken that can use any http method.
+func (c *Client) RequestTokenAnyMethod(client *http.Client, temporaryCredentials *Credentials, verifier, method string) (*Credentials, url.Values, error) {
+	return c.requestCredentials(client, c.TokenRequestURI, &request{credentials: temporaryCredentials, verifier: verifier, method: method})
 }
 
 // RequestTokenXAuth requests token credentials from the server using the xAuth protocol.
