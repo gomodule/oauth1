@@ -475,14 +475,16 @@ func (c *Client) SetAuthorizationHeader(header http.Header, credentials *Credent
 }
 
 func (c *Client) do(client *http.Client, urlStr string, r *request) (*http.Response, error) {
-	req, err := http.NewRequest(r.method, urlStr, nil)
+	var body io.Reader
+	if r.method != http.MethodGet {
+		body = strings.NewReader(r.form.Encode())
+	}
+	req, err := http.NewRequest(r.method, urlStr, body)
 	if err != nil {
 		return nil, err
 	}
 	if r.method == http.MethodGet {
 		req.URL.RawQuery = r.form.Encode()
-	} else {
-		req.Body = ioutil.NopCloser(strings.NewReader(r.form.Encode()))
 	}
 	for k, v := range c.Header {
 		req.Header[k] = v
