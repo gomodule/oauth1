@@ -279,6 +279,16 @@ type Client struct {
 	// access token URL.
 	TokenRequestURI string
 
+	// TemporaryCredentialsMethod is the http method used
+	// by the client to obtain a set of temporary credentials.
+	// If it is empty, use the POST method.
+	TemporaryCredentialsMethod string
+
+	// TokenCredentailsMethod is the http method used by the client to
+	// request a set of token credentials using a set of temporary credentials.
+	// If it is empty, use the POST method.
+	TokenCredentailsMethod string
+
 	// Header specifies optional extra headers for requests.
 	Header http.Header
 
@@ -464,32 +474,15 @@ func (c *Client) SetAuthorizationHeader(header http.Header, credentials *Credent
 	return nil
 }
 
-// Get issues a GET to the specified URL with form added as a query string.
-func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	req, err := http.NewRequest("GET", urlStr, nil)
-	if err != nil {
-		return nil, err
-	}
-	if req.URL.RawQuery != "" {
-		return nil, errors.New("oauth: url must not contain a query string")
-	}
-	for k, v := range c.Header {
-		req.Header[k] = v
-	}
-	if err := c.SetAuthorizationHeader(req.Header, credentials, "GET", req.URL, form); err != nil {
-		return nil, err
-	}
-	req.URL.RawQuery = form.Encode()
-	if client == nil {
-		client = http.DefaultClient
-	}
-	return client.Do(req)
-}
-
 func (c *Client) do(client *http.Client, urlStr string, r *request) (*http.Response, error) {
-	req, err := http.NewRequest(r.method, urlStr, strings.NewReader(r.form.Encode()))
+	req, err := http.NewRequest(r.method, urlStr, nil)
 	if err != nil {
 		return nil, err
+	}
+	if r.method == http.MethodGet {
+		req.URL.RawQuery = r.form.Encode()
+	} else {
+		req.Body = ioutil.NopCloser(strings.NewReader(r.form.Encode()))
 	}
 	for k, v := range c.Header {
 		req.Header[k] = v
@@ -508,24 +501,29 @@ func (c *Client) do(client *http.Client, urlStr string, r *request) (*http.Respo
 	return client.Do(req)
 }
 
+// Get issues a GET to the specified URL with form added as a query string.
+func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(client, urlStr, &request{method: http.MethodGet, credentials: credentials, form: form})
+}
+
 // Post issues a POST with the specified form.
 func (c *Client) Post(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	return c.do(client, urlStr, &request{method: "POST", credentials: credentials, form: form})
+	return c.do(client, urlStr, &request{method: http.MethodPost, credentials: credentials, form: form})
 }
 
 // Delete issues a DELETE with the specified form.
 func (c *Client) Delete(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	return c.do(client, urlStr, &request{method: "DELETE", credentials: credentials, form: form})
+	return c.do(client, urlStr, &request{method: http.MethodDelete, credentials: credentials, form: form})
 }
 
 // Put issues a PUT with the specified form.
 func (c *Client) Put(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	return c.do(client, urlStr, &request{method: "PUT", credentials: credentials, form: form})
+	return c.do(client, urlStr, &request{method: http.MethodPut, credentials: credentials, form: form})
 }
 
 func (c *Client) requestCredentials(client *http.Client, u string, r *request) (*Credentials, url.Values, error) {
 	if r.method == "" {
-		r.method = "POST"
+		r.method = http.MethodPost
 	}
 	resp, err := c.do(client, u, r)
 	if err != nil {
@@ -558,7 +556,8 @@ func (c *Client) requestCredentials(client *http.Client, u string, r *request) (
 // See http://tools.ietf.org/html/rfc5849#section-2.1 for information about
 // temporary credentials.
 func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL string, additionalParams url.Values) (*Credentials, error) {
-	credentials, _, err := c.requestCredentials(client, c.TemporaryCredentialRequestURI, &request{form: additionalParams, callbackURL: callbackURL})
+	credentials, _, err := c.requestCredentials(client, c.TemporaryCredentialRequestURI,
+		&request{method: c.TemporaryCredentialsMethod, form: additionalParams, callbackURL: callbackURL})
 	return credentials, err
 }
 
@@ -566,12 +565,8 @@ func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL st
 // http://tools.ietf.org/html/rfc5849#section-2.3 for information about token
 // credentials.
 func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
-	return c.requestCredentials(client, c.TokenRequestURI, &request{credentials: temporaryCredentials, verifier: verifier})
-}
-
-// RequestTokenAnyMethod is a RequestToken that can use any http method.
-func (c *Client) RequestTokenAnyMethod(client *http.Client, temporaryCredentials *Credentials, verifier, method string) (*Credentials, url.Values, error) {
-	return c.requestCredentials(client, c.TokenRequestURI, &request{credentials: temporaryCredentials, verifier: verifier, method: method})
+	return c.requestCredentials(client, c.TokenRequestURI,
+		&request{credentials: temporaryCredentials, method: c.TokenCredentailsMethod, verifier: verifier})
 }
 
 // RequestTokenXAuth requests token credentials from the server using the xAuth protocol.
@@ -581,7 +576,8 @@ func (c *Client) RequestTokenXAuth(client *http.Client, temporaryCredentials *Cr
 	form.Set("x_auth_mode", "client_auth")
 	form.Set("x_auth_username", user)
 	form.Set("x_auth_password", password)
-	return c.requestCredentials(client, c.TokenRequestURI, &request{credentials: temporaryCredentials, form: form})
+	return c.requestCredentials(client, c.TokenRequestURI,
+		&request{credentials: temporaryCredentials, method: c.TokenCredentailsMethod, form: form})
 }
 
 // AuthorizationURL returns the URL for resource owner authorization. See
