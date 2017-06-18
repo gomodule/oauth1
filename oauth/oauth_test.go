@@ -303,3 +303,36 @@ func TestRequestToken(t *testing.T) {
 		}
 	}
 }
+
+func TestRenewRequestCredentials(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a := r.Header.Get("Authorization")
+		if !strings.Contains(a, `oauth_token="token"`) {
+			t.Errorf("Authorization header %q should contains %q", a, `oauth_token="token"`)
+		}
+		if !strings.Contains(a, `oauth_session_handle="session-handle"`) {
+			t.Errorf("Authorization header %q should contains %q", a, `oauth_session_handle="session-handle"`)
+		}
+		v := url.Values{}
+		v.Set("oauth_token", "response-token")
+		v.Set("oauth_token_secret", "response-token-secret")
+		v.Set("oauth_session_handle", "response-session-handle")
+		io.WriteString(w, v.Encode())
+	}))
+	defer ts.Close()
+
+	c := Client{RenewCredentialRequestURI: ts.URL}
+	cred, rv, err := c.RenewRequestCredentials(http.DefaultClient, &Credentials{Token: "token"}, "session-handle")
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	if cred.Token != "response-token" {
+		t.Errorf("token for %s want %s", cred.Token, "response-token")
+	}
+	if cred.Secret != "response-token-secret" {
+		t.Errorf("secret for %s want %s", cred.Secret, "response-token-secret")
+	}
+	if rv.Get("oauth_session_handle") != "response-session-handle" {
+		t.Errorf("session handle for %s want %s", rv.Get("oauth_session_handle"), "response-session-handle")
+	}
+}

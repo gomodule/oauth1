@@ -289,6 +289,10 @@ type Client struct {
 	// is used.
 	TokenCredentailsMethod string
 
+	// RenewCredentialRequestURI is the endpoint the client uses to
+	// request a new set of token credentials using the old set of credentials.
+	RenewCredentialRequestURI string
+
 	// Header specifies optional extra headers for requests.
 	Header http.Header
 
@@ -302,12 +306,13 @@ type Client struct {
 }
 
 type request struct {
-	credentials *Credentials
-	method      string
-	u           *url.URL
-	form        url.Values
-	verifier    string
-	callbackURL string
+	credentials   *Credentials
+	method        string
+	u             *url.URL
+	form          url.Values
+	verifier      string
+	sessionHandle string
+	callbackURL   string
 }
 
 var testHook = func(map[string]string) {}
@@ -334,6 +339,10 @@ func (c *Client) oauthParams(r *request) (map[string]string, error) {
 
 	if r.verifier != "" {
 		oauthParams["oauth_verifier"] = r.verifier
+	}
+
+	if r.sessionHandle != "" {
+		oauthParams["oauth_session_handle"] = r.sessionHandle
 	}
 
 	if r.callbackURL != "" {
@@ -425,6 +434,7 @@ var oauthKeys = []string{
 	"oauth_version",
 	"oauth_callback",
 	"oauth_verifier",
+	"oauth_session_handle",
 }
 
 func (c *Client) authorizationHeader(r *request) (string, error) {
@@ -572,6 +582,13 @@ func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL st
 func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
 	return c.requestCredentials(client, c.TokenRequestURI,
 		&request{credentials: temporaryCredentials, method: c.TokenCredentailsMethod, verifier: verifier})
+}
+
+// RenewRequestCredentials requests new token credentials from the server.
+// See http://wiki.oauth.net/w/page/12238549/ScalableOAuth#AccessTokenRenewal
+// for information about access token renewal.
+func (c *Client) RenewRequestCredentials(client *http.Client, credentials *Credentials, sessionHandle string) (*Credentials, url.Values, error) {
+	return c.requestCredentials(client, c.RenewCredentialRequestURI, &request{credentials: credentials, sessionHandle: sessionHandle})
 }
 
 // RequestTokenXAuth requests token credentials from the server using the xAuth protocol.
