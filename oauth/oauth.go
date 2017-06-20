@@ -279,14 +279,14 @@ type Client struct {
 	// access token URL.
 	TokenRequestURI string
 
-	// TemporaryCredentialsMethod is the http method used
-	// by the client to obtain a set of temporary credentials.
-	// If it is empty, use the POST method.
+	// TemporaryCredentialsMethod is the HTTP method used by the client to
+	// obtain a set of temporary credentials. If this field is the empty
+	// string, then POST is used.
 	TemporaryCredentialsMethod string
 
-	// TokenCredentailsMethod is the http method used by the client to
-	// request a set of token credentials using a set of temporary credentials.
-	// If it is empty, use the POST method.
+	// TokenCredentailsMethod is the HTTP method used by the client to request
+	// a set of token credentials. If this field is the empty string, then POST
+	// is used.
 	TokenCredentailsMethod string
 
 	// Header specifies optional extra headers for requests.
@@ -483,20 +483,23 @@ func (c *Client) do(client *http.Client, urlStr string, r *request) (*http.Respo
 	if err != nil {
 		return nil, err
 	}
-	if r.method == http.MethodGet {
-		req.URL.RawQuery = r.form.Encode()
+	if req.URL.RawQuery != "" {
+		return nil, errors.New("oauth: url must not contain a query string")
 	}
 	for k, v := range c.Header {
 		req.Header[k] = v
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
 	r.u = req.URL
 	auth, err := c.authorizationHeader(r)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", auth)
+	if r.method == http.MethodGet {
+		req.URL.RawQuery = r.form.Encode()
+	} else {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
 	if client == nil {
 		client = http.DefaultClient
 	}
