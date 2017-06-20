@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -262,34 +263,24 @@ func TestNonce(t *testing.T) {
 }
 
 func TestRequestToken(t *testing.T) {
+	var method string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("http method for %s want %s", r.Method, http.MethodPost)
+		expectedMethod := method
+		if method == "" {
+			expectedMethod = http.MethodPost
 		}
-		v := url.Values{}
-		v.Set("oauth_token", "token")
-		v.Set("oauth_token_secret", "secret")
-		io.WriteString(w, v.Encode())
-	}))
-	defer ts.Close()
-
-	c := Client{TokenRequestURI: ts.URL}
-	cred, _, err := c.RequestToken(http.DefaultClient, &Credentials{}, "")
-	if err != nil {
-		t.Errorf("returned error %v", err)
-	}
-	if cred.Token != "token" {
-		t.Errorf("token for %s want %s", cred.Token, "token")
-	}
-	if cred.Secret != "secret" {
-		t.Errorf("secret for %s want %s", cred.Secret, "secret")
-	}
-}
-
-func TestRequestTokenWithGET(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != expectedMethod {
+			t.Errorf("got method %s, want %s", r.Method, expectedMethod)
+		}
+		expectedContenType := ""
 		if r.Method != http.MethodGet {
-			t.Errorf("http method for %s want %s", r.Method, http.MethodGet)
+			expectedContenType = "application/x-www-form-urlencoded"
+		}
+		if contentType := r.Header.Get("Content-Type"); contentType != expectedContenType {
+			t.Errorf("got content type %q, want %q", contentType, expectedContenType)
+		}
+		if auth := r.Header.Get("Authorization"); !strings.Contains(auth, `oauth_verifier="verifier"`) {
+			t.Errorf("verifier missing from auth header %q", auth)
 		}
 		v := url.Values{}
 		v.Set("oauth_token", "token")
@@ -298,15 +289,17 @@ func TestRequestTokenWithGET(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := Client{TokenRequestURI: ts.URL, TokenCredentailsMethod: http.MethodGet}
-	cred, _, err := c.RequestToken(http.DefaultClient, &Credentials{}, "")
-	if err != nil {
-		t.Errorf("returned error %v", err)
-	}
-	if cred.Token != "token" {
-		t.Errorf("token for %s want %s", cred.Token, "token")
-	}
-	if cred.Secret != "secret" {
-		t.Errorf("secret for %s want %s", cred.Secret, "secret")
+	for _, method = range []string{"", "GET", "POST"} {
+		c := Client{TokenRequestURI: ts.URL, TokenCredentailsMethod: method}
+		cred, _, err := c.RequestToken(http.DefaultClient, &Credentials{}, "verifier")
+		if err != nil {
+			t.Errorf("returned error %v", err)
+		}
+		if cred.Token != "token" {
+			t.Errorf("token for %s want %s", cred.Token, "token")
+		}
+		if cred.Secret != "secret" {
+			t.Errorf("secret for %s want %s", cred.Secret, "secret")
+		}
 	}
 }
