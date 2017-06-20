@@ -18,11 +18,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"text/template"
 
 	"github.com/garyburd/go-oauth/examples/session"
 	"github.com/garyburd/go-oauth/oauth"
@@ -190,7 +190,7 @@ func serveTimeline(w http.ResponseWriter, r *http.Request, cred *oauth.Credentia
 	if err := apiGet(
 		cred,
 		"https://api.twitter.com/1.1/statuses/home_timeline.json",
-		nil,
+		url.Values{"include_entities": {"true"}},
 		&timeline); err != nil {
 		http.Error(w, "Error getting timeline, "+err.Error(), 500)
 		return
@@ -278,7 +278,7 @@ var (
 <body>
 <p><a href="/">home</a>
 {{range .}}
-<p><b>{{html .sender.name}}</b> {{html .text}}
+<p><b>{{.sender.name}}</b> {{.text}}
 {{end}}
 </body></html>`))
 
@@ -289,7 +289,12 @@ var (
 <body>
 <p><a href="/">home</a>
 {{range .}}
-<p><b>{{html .user.name}}</b> {{html .text}}
+<p><b>{{.user.name}}</b> {{.text}}
+{{with .entities}}
+    {{with .urls}}<br><i>urls:</i> {{range .}}{{.expanded_url}}{{end}}{{end}}
+    {{with .hashtags}}<br><i>hashtags:</i> {{range .}}{{.text}}{{end}}{{end}}
+    {{with .user_mentions}}<br><i>user_mentions:</i> {{range .}}{{.screen_name}}{{end}}{{end}}
+{{end}}
 {{end}}
 </body></html>`))
 
@@ -299,6 +304,6 @@ var (
 </head>
 <body>
 <p><a href="/">home</a>
-<p>You are now following <a href="https://twitter.com/{{html .screen_name}}">{{html .name}}</a>
+<p>You are now following <a href="https://twitter.com/{{.screen_name}}">{{.name}}</a>
 </body></html>`))
 )
