@@ -279,6 +279,10 @@ type Client struct {
 	// access token URL.
 	TokenRequestURI string
 
+	// RenewCredentialRequestURI is the endpoint the client uses to
+	// request a new set of token credentials using the old set of credentials.
+	RenewCredentialRequestURI string
+
 	// TemporaryCredentialsMethod is the HTTP method used by the client to
 	// obtain a set of temporary credentials. If this field is the empty
 	// string, then POST is used.
@@ -288,10 +292,6 @@ type Client struct {
 	// a set of token credentials. If this field is the empty string, then POST
 	// is used.
 	TokenCredentailsMethod string
-
-	// RenewCredentialRequestURI is the endpoint the client uses to
-	// request a new set of token credentials using the old set of credentials.
-	RenewCredentialRequestURI string
 
 	// Header specifies optional extra headers for requests.
 	Header http.Header
