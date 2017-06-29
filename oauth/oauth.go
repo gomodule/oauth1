@@ -667,6 +667,8 @@ func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalP
 	return c.ResourceOwnerAuthorizationURI + "?" + params.Encode()
 }
 
+// HTTPClient is the context key to use with context's
+// WithValue function to associate an *http.Client value with a context.
 var HTTPClient contextKey
 
 type contextKey struct{}
