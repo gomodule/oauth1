@@ -336,3 +336,32 @@ func TestRenewRequestCredentials(t *testing.T) {
 		t.Errorf("session handle for %s want %s", rv.Get("oauth_session_handle"), "response-session-handle")
 	}
 }
+
+func TestRequestCredentialsError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", "oauth_problem=token_rejected")
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, "oauth_problem=token_rejected")
+	}))
+	defer ts.Close()
+
+	c := Client{TokenRequestURI: ts.URL}
+	_, _, err := c.RequestToken(http.DefaultClient, &Credentials{}, "verifier")
+	if err == nil {
+		t.Error("error should not be nil")
+	}
+	if rce, ok := err.(RequestCredentialsError); ok {
+		if rce.StatusCode != http.StatusUnauthorized {
+			t.Errorf("status code %d, want %d", rce.StatusCode, http.StatusUnauthorized)
+		}
+		wa := rce.Header.Get("WWW-Authenticate")
+		if wa != "oauth_problem=token_rejected" {
+			t.Errorf("WWW-Authenticate header %s, want %s", wa, "oauth_problem=token_rejected")
+		}
+		if rce.Body != "oauth_problem=token_rejected" {
+			t.Errorf("body %s,want %s", rce.Body, "oauth_problem=token_rejected")
+		}
+	} else {
+		t.Error("error should be assertable RequestCredentialsError")
+	}
+}
