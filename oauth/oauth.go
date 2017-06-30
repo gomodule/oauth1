@@ -547,22 +547,27 @@ func (c *Client) requestCredentials(client *http.Client, u string, r *request) (
 	p, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
+			Body: string(p), msg: err.Error()}
 	}
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
-		return nil, nil, fmt.Errorf("OAuth server status %d, %s", resp.StatusCode, string(p))
+		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
+			Body: string(p), msg: fmt.Sprintf("OAuth server status %d, %s", resp.StatusCode, string(p))}
 	}
 	m, err := url.ParseQuery(string(p))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
+			Body: string(p), msg: err.Error()}
 	}
 	tokens := m["oauth_token"]
 	if len(tokens) == 0 || tokens[0] == "" {
-		return nil, nil, errors.New("oauth: token missing from server result")
+		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
+			Body: string(p), msg: "oauth: token missing from server result"}
 	}
 	secrets := m["oauth_token_secret"]
 	if len(secrets) == 0 { // allow "" as a valid secret.
-		return nil, nil, errors.New("oauth: secret missing from server result")
+		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
+			Body: string(p), msg: "oauth: secret missing from server result"}
 	}
 	return &Credentials{Token: tokens[0], Secret: secrets[0]}, m, nil
 }
@@ -612,4 +617,17 @@ func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalP
 	}
 	params.Set("oauth_token", temporaryCredentials.Token)
 	return c.ResourceOwnerAuthorizationURI + "?" + params.Encode()
+}
+
+// RequestCredentialsError is an error containing
+// response information when requesting credentials.
+type RequestCredentialsError struct {
+	StatusCode int
+	Header     http.Header
+	Body       string
+	msg        string
+}
+
+func (e RequestCredentialsError) Error() string {
+	return e.msg
 }
