@@ -57,6 +57,16 @@
 // The Get, Put, Post and Delete methods sign and invoke a request using the
 // supplied net/http Client. These methods are easy to use, but not as flexible
 // as constructing a request using one of the low-level methods.
+//
+// Context With HTTP Client
+//
+// A context-enabled method can include a custom HTTP client in the
+// context and execute an HTTP request using the included HTTP client.
+//
+//     hc := &http.Client{Timeout: 2 * time.Second}
+//     ctx := context.WithValue(context.Background(), oauth.HTTPClient, hc)
+//     c := oauth.Client{ /* Any settings */ }
+//     resp, err := c.GetContext(ctx, &oauth.Credentials{}, rawurl, nil)
 package oauth // import "github.com/garyburd/go-oauth/oauth"
 
 import (
