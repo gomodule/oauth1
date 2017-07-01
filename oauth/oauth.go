@@ -522,7 +522,7 @@ func (c *Client) do(ctx context.Context, urlStr string, r *request) (*http.Respo
 	} else {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
-	req = req.WithContext(ctx)
+	req = requestWithContext(ctx, req)
 	client := contextClient(ctx)
 	return client.Do(req)
 }
