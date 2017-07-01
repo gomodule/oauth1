@@ -71,7 +71,6 @@ package oauth // import "github.com/garyburd/go-oauth/oauth"
 
 import (
 	"bytes"
-	"context"
 	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
@@ -90,6 +89,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 // noscape[b] is true if b should not be escaped per section 3.6 of the RFC.
