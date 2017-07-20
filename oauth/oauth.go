@@ -548,26 +548,26 @@ func (c *Client) requestCredentials(client *http.Client, u string, r *request) (
 	resp.Body.Close()
 	if err != nil {
 		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: string(p), msg: err.Error()}
+			Body: p, msg: err.Error()}
 	}
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: string(p), msg: fmt.Sprintf("OAuth server status %d, %s", resp.StatusCode, string(p))}
+			Body: p, msg: fmt.Sprintf("OAuth server status %d, %s", resp.StatusCode, string(p))}
 	}
 	m, err := url.ParseQuery(string(p))
 	if err != nil {
 		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: string(p), msg: err.Error()}
+			Body: p, msg: err.Error()}
 	}
 	tokens := m["oauth_token"]
 	if len(tokens) == 0 || tokens[0] == "" {
 		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: string(p), msg: "oauth: token missing from server result"}
+			Body: p, msg: "oauth: token missing from server result"}
 	}
 	secrets := m["oauth_token_secret"]
 	if len(secrets) == 0 { // allow "" as a valid secret.
 		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: string(p), msg: "oauth: secret missing from server result"}
+			Body: p, msg: "oauth: secret missing from server result"}
 	}
 	return &Credentials{Token: tokens[0], Secret: secrets[0]}, m, nil
 }
@@ -624,7 +624,7 @@ func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalP
 type RequestCredentialsError struct {
 	StatusCode int
 	Header     http.Header
-	Body       string
+	Body       []byte
 	msg        string
 }
 

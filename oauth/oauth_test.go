@@ -358,7 +358,7 @@ func TestRequestCredentialsError(t *testing.T) {
 		if wa != "oauth_problem=token_rejected" {
 			t.Errorf("WWW-Authenticate header %s, want %s", wa, "oauth_problem=token_rejected")
 		}
-		if rce.Body != "oauth_problem=token_rejected" {
+		if string(rce.Body) != "oauth_problem=token_rejected" {
 			t.Errorf("body %s,want %s", rce.Body, "oauth_problem=token_rejected")
 		}
 	} else {
