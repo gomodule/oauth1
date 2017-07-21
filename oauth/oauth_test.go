@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -360,7 +359,7 @@ func TestGet(t *testing.T) {
 		if cookie.Value != "foobar" {
 			t.Errorf("client-cookie %s, want %s", cookie.Value, "foobar")
 		}
-		fmt.Fprint(w, "bar")
+		io.WriteString(w, "bar")
 	}))
 	defer ts.Close()
 
@@ -395,7 +394,7 @@ func TestGet_ClientNil(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("got method %s, want %s", r.Method, http.MethodGet)
 		}
-		fmt.Fprint(w, "bar")
+		io.WriteString(w, "bar")
 	}))
 	defer ts.Close()
 
@@ -426,7 +425,7 @@ func TestGetContext(t *testing.T) {
 		if cookie.Value != "foobar" {
 			t.Errorf("client-cookie %s, want %s", cookie.Value, "foobar")
 		}
-		fmt.Fprint(w, "bar")
+		io.WriteString(w, "bar")
 	}))
 	defer ts.Close()
 
