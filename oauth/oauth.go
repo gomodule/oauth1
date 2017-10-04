@@ -57,6 +57,16 @@
 // The Get, Put, Post and Delete methods sign and invoke a request using the
 // supplied net/http Client. These methods are easy to use, but not as flexible
 // as constructing a request using one of the low-level methods.
+//
+// Context With HTTP Client
+//
+// A context-enabled method can include a custom HTTP client in the
+// context and execute an HTTP request using the included HTTP client.
+//
+//     hc := &http.Client{Timeout: 2 * time.Second}
+//     ctx := context.WithValue(context.Background(), oauth.HTTPClient, hc)
+//     c := oauth.Client{ /* Any settings */ }
+//     resp, err := c.GetContext(ctx, &oauth.Credentials{}, rawurl, nil)
 package oauth // import "github.com/garyburd/go-oauth/oauth"
 
 import (
@@ -79,6 +89,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 // noscape[b] is true if b should not be escaped per section 3.6 of the RFC.
@@ -484,7 +496,7 @@ func (c *Client) SetAuthorizationHeader(header http.Header, credentials *Credent
 	return nil
 }
 
-func (c *Client) do(client *http.Client, urlStr string, r *request) (*http.Response, error) {
+func (c *Client) do(ctx context.Context, urlStr string, r *request) (*http.Response, error) {
 	var body io.Reader
 	if r.method != http.MethodGet {
 		body = strings.NewReader(r.form.Encode())
@@ -510,37 +522,60 @@ func (c *Client) do(client *http.Client, urlStr string, r *request) (*http.Respo
 	} else {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
-	if client == nil {
-		client = http.DefaultClient
-	}
+	req = requestWithContext(ctx, req)
+	client := contextClient(ctx)
 	return client.Do(req)
 }
 
 // Get issues a GET to the specified URL with form added as a query string.
 func (c *Client) Get(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	return c.do(client, urlStr, &request{method: http.MethodGet, credentials: credentials, form: form})
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.GetContext(ctx, credentials, urlStr, form)
+}
+
+// GetContext uses Context to perform Get.
+func (c *Client) GetContext(ctx context.Context, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(ctx, urlStr, &request{method: http.MethodGet, credentials: credentials, form: form})
 }
 
 // Post issues a POST with the specified form.
 func (c *Client) Post(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	return c.do(client, urlStr, &request{method: http.MethodPost, credentials: credentials, form: form})
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.PostContext(ctx, credentials, urlStr, form)
+}
+
+// PostContext uses Context to perform Post.
+func (c *Client) PostContext(ctx context.Context, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(ctx, urlStr, &request{method: http.MethodPost, credentials: credentials, form: form})
 }
 
 // Delete issues a DELETE with the specified form.
 func (c *Client) Delete(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	return c.do(client, urlStr, &request{method: http.MethodDelete, credentials: credentials, form: form})
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.DeleteContext(ctx, credentials, urlStr, form)
+}
+
+// DeleteContext uses Context to perform Delete.
+func (c *Client) DeleteContext(ctx context.Context, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(ctx, urlStr, &request{method: http.MethodDelete, credentials: credentials, form: form})
 }
 
 // Put issues a PUT with the specified form.
 func (c *Client) Put(client *http.Client, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
-	return c.do(client, urlStr, &request{method: http.MethodPut, credentials: credentials, form: form})
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.PutContext(ctx, credentials, urlStr, form)
 }
 
-func (c *Client) requestCredentials(client *http.Client, u string, r *request) (*Credentials, url.Values, error) {
+// PutContext uses Context to perform Put.
+func (c *Client) PutContext(ctx context.Context, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
+	return c.do(ctx, urlStr, &request{method: http.MethodPut, credentials: credentials, form: form})
+}
+
+func (c *Client) requestCredentials(ctx context.Context, u string, r *request) (*Credentials, url.Values, error) {
 	if r.method == "" {
 		r.method = http.MethodPost
 	}
-	resp, err := c.do(client, u, r)
+	resp, err := c.do(ctx, u, r)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -576,7 +611,13 @@ func (c *Client) requestCredentials(client *http.Client, u string, r *request) (
 // See http://tools.ietf.org/html/rfc5849#section-2.1 for information about
 // temporary credentials.
 func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL string, additionalParams url.Values) (*Credentials, error) {
-	credentials, _, err := c.requestCredentials(client, c.TemporaryCredentialRequestURI,
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.RequestTemporaryCredentialsContext(ctx, callbackURL, additionalParams)
+}
+
+// RequestTemporaryCredentialsContext uses Context to perform RequestTemporaryCredentials.
+func (c *Client) RequestTemporaryCredentialsContext(ctx context.Context, callbackURL string, additionalParams url.Values) (*Credentials, error) {
+	credentials, _, err := c.requestCredentials(ctx, c.TemporaryCredentialRequestURI,
 		&request{method: c.TemporaryCredentialsMethod, form: additionalParams, callbackURL: callbackURL})
 	return credentials, err
 }
@@ -585,7 +626,13 @@ func (c *Client) RequestTemporaryCredentials(client *http.Client, callbackURL st
 // http://tools.ietf.org/html/rfc5849#section-2.3 for information about token
 // credentials.
 func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
-	return c.requestCredentials(client, c.TokenRequestURI,
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.RequestTokenContext(ctx, temporaryCredentials, verifier)
+}
+
+// RequestTokenContext uses Context to perform RequestToken.
+func (c *Client) RequestTokenContext(ctx context.Context, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
+	return c.requestCredentials(ctx, c.TokenRequestURI,
 		&request{credentials: temporaryCredentials, method: c.TokenCredentailsMethod, verifier: verifier})
 }
 
@@ -593,17 +640,29 @@ func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credent
 // See http://wiki.oauth.net/w/page/12238549/ScalableOAuth#AccessTokenRenewal
 // for information about access token renewal.
 func (c *Client) RenewRequestCredentials(client *http.Client, credentials *Credentials, sessionHandle string) (*Credentials, url.Values, error) {
-	return c.requestCredentials(client, c.RenewCredentialRequestURI, &request{credentials: credentials, sessionHandle: sessionHandle})
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.RenewRequestCredentialsContext(ctx, credentials, sessionHandle)
+}
+
+// RenewRequestCredentialsContext uses Context to perform RenewRequestCredentials.
+func (c *Client) RenewRequestCredentialsContext(ctx context.Context, credentials *Credentials, sessionHandle string) (*Credentials, url.Values, error) {
+	return c.requestCredentials(ctx, c.RenewCredentialRequestURI, &request{credentials: credentials, sessionHandle: sessionHandle})
 }
 
 // RequestTokenXAuth requests token credentials from the server using the xAuth protocol.
 // See https://dev.twitter.com/oauth/xauth for information on xAuth.
 func (c *Client) RequestTokenXAuth(client *http.Client, temporaryCredentials *Credentials, user, password string) (*Credentials, url.Values, error) {
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.RequestTokenXAuthContext(ctx, temporaryCredentials, user, password)
+}
+
+// RequestTokenXAuthContext uses Context to perform RequestTokenXAuth.
+func (c *Client) RequestTokenXAuthContext(ctx context.Context, temporaryCredentials *Credentials, user, password string) (*Credentials, url.Values, error) {
 	form := make(url.Values)
 	form.Set("x_auth_mode", "client_auth")
 	form.Set("x_auth_username", user)
 	form.Set("x_auth_password", password)
-	return c.requestCredentials(client, c.TokenRequestURI,
+	return c.requestCredentials(ctx, c.TokenRequestURI,
 		&request{credentials: temporaryCredentials, method: c.TokenCredentailsMethod, form: form})
 }
 
@@ -617,6 +676,21 @@ func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalP
 	}
 	params.Set("oauth_token", temporaryCredentials.Token)
 	return c.ResourceOwnerAuthorizationURI + "?" + params.Encode()
+}
+
+// HTTPClient is the context key to use with context's
+// WithValue function to associate an *http.Client value with a context.
+var HTTPClient contextKey
+
+type contextKey struct{}
+
+func contextClient(ctx context.Context) *http.Client {
+	if ctx != nil {
+		if hc, ok := ctx.Value(HTTPClient).(*http.Client); ok && hc != nil {
+			return hc
+		}
+	}
+	return http.DefaultClient
 }
 
 // RequestCredentialsError is an error containing

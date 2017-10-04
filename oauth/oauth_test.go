@@ -19,11 +19,15 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io"
+	"io/ioutil"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"golang.org/x/net/context"
 )
 
 func parseURL(urlStr string) *url.URL {
@@ -334,6 +338,119 @@ func TestRenewRequestCredentials(t *testing.T) {
 	}
 	if rv.Get("oauth_session_handle") != "response-session-handle" {
 		t.Errorf("session handle for %s want %s", rv.Get("oauth_session_handle"), "response-session-handle")
+	}
+}
+
+func TestGet(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("got method %s, want %s", r.Method, http.MethodGet)
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("returned error %v", err)
+		}
+		if form := r.Form.Get("form"); form != "foo" {
+			t.Errorf("form %s, want %s", form, "foo")
+		}
+		cookie, err := r.Cookie("client-cookie")
+		if err != nil {
+			t.Errorf("returned error %v", err)
+		}
+		if cookie.Value != "foobar" {
+			t.Errorf("client-cookie %s, want %s", cookie.Value, "foobar")
+		}
+		io.WriteString(w, "bar")
+	}))
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	jar.SetCookies(u, []*http.Cookie{&http.Cookie{Name: "client-cookie", Value: "foobar"}})
+	v := url.Values{}
+	v.Set("form", "foo")
+	c := Client{}
+	resp, err := c.Get(&http.Client{Jar: jar}, &Credentials{}, u.String(), v)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	if string(b) != "bar" {
+		t.Errorf("body %s, want %s", string(b), "bar")
+	}
+}
+
+func TestGet_ClientNil(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("got method %s, want %s", r.Method, http.MethodGet)
+		}
+		io.WriteString(w, "bar")
+	}))
+	defer ts.Close()
+
+	c := Client{}
+	resp, err := c.Get(nil, &Credentials{}, ts.URL, nil)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	if string(b) != "bar" {
+		t.Errorf("body %s, want %s", string(b), "bar")
+	}
+}
+
+func TestGetContext(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("got method %s, want %s", r.Method, http.MethodGet)
+		}
+		cookie, err := r.Cookie("client-cookie")
+		if err != nil {
+			t.Errorf("returned error %v", err)
+		}
+		if cookie.Value != "foobar" {
+			t.Errorf("client-cookie %s, want %s", cookie.Value, "foobar")
+		}
+		io.WriteString(w, "bar")
+	}))
+	defer ts.Close()
+
+	u, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	jar.SetCookies(u, []*http.Cookie{&http.Cookie{Name: "client-cookie", Value: "foobar"}})
+	ctx := context.WithValue(context.Background(), HTTPClient, &http.Client{Jar: jar})
+	c := Client{}
+	resp, err := c.GetContext(ctx, &Credentials{}, u.String(), nil)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("returned error %v", err)
+	}
+	if string(b) != "bar" {
+		t.Errorf("body %s, want %s", string(b), "bar")
 	}
 }
 
