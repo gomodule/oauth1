@@ -22,7 +22,7 @@ import (
 	"log"
 	"net/url"
 
-	"github.com/garyburd/go-oauth/oauth"
+	"github.com/gomodule/oauth1/oauth"
 )
 
 type client struct {

@@ -24,8 +24,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/garyburd/go-oauth/examples/session"
-	"github.com/garyburd/go-oauth/oauth"
+	"github.com/gomodule/oauth1/examples/session"
+	"github.com/gomodule/oauth1/oauth"
 )
 
 // Session state keys.

@@ -15,15 +15,14 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"text/template"
 
-	"github.com/garyburd/go-oauth/oauth"
-
-	"golang.org/x/net/context"
+	"github.com/gomodule/oauth1/oauth"
 
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"

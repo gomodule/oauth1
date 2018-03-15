@@ -23,7 +23,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/garyburd/go-oauth/oauth"
+	"github.com/gomodule/oauth1/oauth"
 )
 
 var oauthClient = oauth.Client{

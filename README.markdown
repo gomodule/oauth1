@@ -1,29 +1,29 @@
-# Go-OAuth
+# OAuth1
 
-[![GoDoc](https://godoc.org/github.com/garyburd/go-oauth/oauth?status.svg)](https://godoc.org/github.com/garyburd/go-oauth/oauth)
-[![Build Status](https://travis-ci.org/garyburd/go-oauth.svg?branch=master)](https://travis-ci.org/garyburd/go-oauth)
+[![GoDoc](https://godoc.org/github.com/gomodule/oauth1/oauth?status.svg)](https://godoc.org/github.com/gomodule/oauth1/oauth)
+[![Build Status](https://travis-ci.org/gomodule/oauth1.svg?branch=master)](https://travis-ci.org/gomodule/oauth1)
 
-Go-OAuth is a [Go](http://golang.org/) client for the OAuth 1.0, OAuth 1.0a and
+OAuth1 is a [Go](https://golang.org/) client for the OAuth 1.0, OAuth 1.0a and
 [RFC 5849](https://tools.ietf.org/html/rfc5849) Protocols. The package supports
 HMAC-SHA1, RSA-SHA1 and PLAINTEXT signatures.
 
 ## Installation
 
-    go get github.com/garyburd/go-oauth/oauth
+    go get github.com/gomodule/oauth1/oauth
 
 ## License
 
-Go-OAuth is available under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html).
+oauth1 is available under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html).
 
 ## Documentation
     
-- [Reference](http://godoc.org/github.com/garyburd/go-oauth/oauth)
+- [Reference](http://godoc.org/github.com/gomodule/oauth1/oauth)
 - Examples
-    - [Discogs](http://github.com/garyburd/go-oauth/tree/master/examples/discogs)
-    - [Dropbox](http://github.com/garyburd/go-oauth/tree/master/examples/dropbox)
-    - [Quickbooks](http://github.com/garyburd/go-oauth/tree/master/examples/quickbooks)
-    - [SmugMug](https://github.com/garyburd/go-oauth/tree/master/examples/smugmug)
-    - [Twitter on App Engine](http://github.com/garyburd/go-oauth/tree/master/examples/appengine) 
-    - [Twitter](http://github.com/garyburd/go-oauth/tree/master/examples/twitter) 
-    - [Twitter OOB](http://github.com/garyburd/go-oauth/tree/master/examples/twitteroob) (a command line application using OOB authorization)
-    - [Yelp](https://github.com/garyburd/go-oauth/tree/master/examples/yelp)
+    - [Discogs](https://github.com/gomodule/oauth1/tree/master/examples/discogs)
+    - [Dropbox](https://github.com/gomodule/oauth1/tree/master/examples/dropbox)
+    - [Quickbooks](https://github.com/gomodule/oauth1/tree/master/examples/quickbooks)
+    - [SmugMug](https://github.com/gomodule/oauth1/tree/master/examples/smugmug)
+    - [Twitter on App Engine](https://github.com/gomodule/oauth1/tree/master/examples/appengine) 
+    - [Twitter](https://github.com/gomodule/oauth1/tree/master/examples/twitter) 
+    - [Twitter OOB](https://github.com/gomodule/oauth1/tree/master/examples/twitteroob) (a command line application using OOB authorization)
+    - [Yelp](https://github.com/gomodule/oauth1/tree/master/examples/yelp)

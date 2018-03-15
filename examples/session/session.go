@@ -12,8 +12,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package session implements a session store for the Go-OAuth examples.  A
-// real application should not use this package.
+// Package session implements a session store for the Oauth1 examples. A real
+// application should not use this package.
 package session
 
 import (
