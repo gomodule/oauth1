@@ -324,6 +324,7 @@ type request struct {
 	verifier      string
 	sessionHandle string
 	callbackURL   string
+	jsonData      string
 }
 
 var testHook = func(map[string]string) {}
@@ -498,7 +499,11 @@ func (c *Client) SetAuthorizationHeader(header http.Header, credentials *Credent
 func (c *Client) do(ctx context.Context, urlStr string, r *request) (*http.Response, error) {
 	var body io.Reader
 	if r.method != http.MethodGet {
-		body = strings.NewReader(r.form.Encode())
+		if r.jsonData != "" {
+			body = strings.NewReader(r.jsonData)
+		} else {
+			body = strings.NewReader(r.form.Encode())
+		}
 	}
 	req, err := http.NewRequest(r.method, urlStr, body)
 	if err != nil {
@@ -519,7 +524,11 @@ func (c *Client) do(ctx context.Context, urlStr string, r *request) (*http.Respo
 	if r.method == http.MethodGet {
 		req.URL.RawQuery = r.form.Encode()
 	} else {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if r.jsonData != "" {
+			req.Header.Set("Content-Type", "application/json")
+		} else {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
 	}
 	req = req.WithContext(ctx)
 	client := contextClient(ctx)
@@ -546,6 +555,12 @@ func (c *Client) Post(client *http.Client, credentials *Credentials, urlStr stri
 // PostContext uses Context to perform Post.
 func (c *Client) PostContext(ctx context.Context, credentials *Credentials, urlStr string, form url.Values) (*http.Response, error) {
 	return c.do(ctx, urlStr, &request{method: http.MethodPost, credentials: credentials, form: form})
+}
+
+// Post issues a POST with the specified json data.
+func (c *Client) PostJson(client *http.Client, credentials *Credentials, urlStr string, jsonData string) (*http.Response, error) {
+	ctx := context.WithValue(context.Background(), HTTPClient, client)
+	return c.do(ctx, urlStr, &request{method: http.MethodPost, credentials: credentials, jsonData: jsonData})
 }
 
 // Delete issues a DELETE with the specified form.
