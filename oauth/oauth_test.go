@@ -16,6 +16,7 @@ package oauth
 
 import (
 	"bytes"
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"io"
@@ -26,8 +27,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-
-	"golang.org/x/net/context"
 )
 
 func parseURL(urlStr string) *url.URL {
