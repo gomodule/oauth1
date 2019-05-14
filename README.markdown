@@ -15,7 +15,17 @@ The package supports the following signatures:
 
 ```bash
 $ go get -u github.com/gomodule/oauth1/oauth
+```  
+  
+Import it in your code:
+    
+```go
+import "github.com/gomodule/oauth1/oauth"
 ```
+
+### Prerequisite
+
+`oauth1` uses the context package requiring Go 1.7 or later.
 
 ## License
 
