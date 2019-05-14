@@ -39,7 +39,7 @@ var oauthClient = oauth.Client{
 	TokenRequestURI:               "https://api.twitter.com/oauth/access_token",
 }
 
-// context stores context associated with an HTTP request.
+// Context stores context associated with an HTTP request.
 type Context struct {
 	c context.Context
 	r *http.Request
