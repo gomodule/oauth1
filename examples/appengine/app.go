@@ -15,13 +15,12 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"text/template"
-
-	"golang.org/x/net/context"
 
 	"github.com/gomodule/oauth1/oauth"
 
