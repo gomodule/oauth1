@@ -21,9 +21,9 @@ import (
 	"net/http"
 	"text/template"
 
-	"golang.org/x/net/context"
-
 	"github.com/gomodule/oauth1/oauth"
+
+	"golang.org/x/net/context"
 
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
@@ -39,7 +39,7 @@ var oauthClient = oauth.Client{
 	TokenRequestURI:               "https://api.twitter.com/oauth/access_token",
 }
 
-// context stores context associated with an HTTP request.
+// Context stores context associated with an HTTP request.
 type Context struct {
 	c context.Context
 	r *http.Request

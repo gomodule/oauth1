@@ -52,6 +52,7 @@ func ExampleClient_SetAuthorizationHeader(client *oauth.Client, credentials *oau
 		return err
 	}
 	defer resp.Body.Close()
+
 	// process the response
 	return nil
 }

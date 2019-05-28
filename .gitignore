@@ -3,3 +3,4 @@ _testmain.go
 *.a
 6.out
 example
+.idea

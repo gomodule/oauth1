@@ -49,7 +49,7 @@
 // an authenticated request by encoding the modified form to the query string
 // or request body.
 //
-// The SetAuthorizationHeader method adds an OAuth siganture to a request
+// The SetAuthorizationHeader method adds an OAuth signature to a request
 // header. The SetAuthorizationHeader method is the only way to correctly sign
 // a request if the application sets the URL Opaque field when making a
 // request.
@@ -77,10 +77,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -92,7 +94,23 @@ import (
 	"time"
 )
 
-// noscape[b] is true if b should not be escaped per section 3.6 of the RFC.
+func newRequestCredentialsError(msg string, resp *http.Response, body []byte) RequestCredentialsError {
+	return RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header, Body: body, msg: msg}
+}
+
+// RequestCredentialsError is an error containing response information when requesting credentials.
+type RequestCredentialsError struct {
+	StatusCode int
+	Header     http.Header
+	Body       []byte
+	msg        string
+}
+
+func (e RequestCredentialsError) Error() string {
+	return e.msg
+}
+
+// noEscape[b] is true if b should not be escaped per section 3.6 of the RFC.
 var noEscape = [256]bool{
 	'A': true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
 	'a': true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
@@ -244,10 +262,29 @@ func nonce() string {
 // SignatureMethod identifies a signature method.
 type SignatureMethod int
 
+func (sm SignatureMethod) hash(b []byte) ([]byte, error) {
+	var h hash.Hash
+	switch sm {
+	case HMACSHA1, RSASHA1:
+		h = sha1.New()
+	case RSASHA256:
+		h = sha256.New()
+	default:
+		return nil, nil
+	}
+	_, err := h.Write(b)
+	if err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
+}
+
 func (sm SignatureMethod) String() string {
 	switch sm {
 	case RSASHA1:
 		return "RSA-SHA1"
+	case RSASHA256:
+		return "RSA-SHA256"
 	case HMACSHA1:
 		return "HMAC-SHA1"
 	case PLAINTEXT:
@@ -257,10 +294,16 @@ func (sm SignatureMethod) String() string {
 	}
 }
 
+// List of supported signature methods.
 const (
-	HMACSHA1  SignatureMethod = iota // HMAC-SHA1
-	RSASHA1                          // RSA-SHA1
-	PLAINTEXT                        // Plain text
+	// HMACSHA1 for HMAC-SHA1.
+	HMACSHA1 SignatureMethod = iota
+	// RSASHA1 for RSA-SHA1.
+	RSASHA1
+	// PLAINTEXT for plaintext.
+	PLAINTEXT
+	// RSASHA256 for RSA-SHA256.
+	RSASHA256
 )
 
 // Credentials represents client, temporary and token credentials.
@@ -321,49 +364,55 @@ type request struct {
 	method        string
 	u             *url.URL
 	form          url.Values
-	verifier      string
+	body          []byte
 	sessionHandle string
+	verifier      string
 	callbackURL   string
 }
 
 var testHook = func(map[string]string) {}
 
 // oauthParams returns the OAuth request parameters for the given credentials,
-// method, URL and application params. See
-// http://tools.ietf.org/html/rfc5849#section-3.4 for more information about
-// signatures.
+// method, URL and application params.
+// See http://tools.ietf.org/html/rfc5849#section-3.4 for more information about signatures.
 func (c *Client) oauthParams(r *request) (map[string]string, error) {
 	oauthParams := map[string]string{
 		"oauth_consumer_key":     c.Credentials.Token,
 		"oauth_signature_method": c.SignatureMethod.String(),
 		"oauth_version":          "1.0",
 	}
-
 	if c.SignatureMethod != PLAINTEXT {
 		oauthParams["oauth_timestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
 		oauthParams["oauth_nonce"] = nonce()
 	}
-
 	if r.credentials != nil {
 		oauthParams["oauth_token"] = r.credentials.Token
 	}
-
 	if r.verifier != "" {
 		oauthParams["oauth_verifier"] = r.verifier
 	}
-
 	if r.sessionHandle != "" {
 		oauthParams["oauth_session_handle"] = r.sessionHandle
 	}
-
 	if r.callbackURL != "" {
 		oauthParams["oauth_callback"] = r.callbackURL
+	}
+	if r.body != nil {
+		src, err := c.SignatureMethod.hash(r.body)
+		if err != nil {
+			return nil, err
+		}
+		if src != nil {
+			oauthParams["oauth_body_hash"] = base64.StdEncoding.EncodeToString(src)
+		}
 	}
 
 	testHook(oauthParams)
 
-	var signature string
-
+	var (
+		signature string
+		err       error
+	)
 	switch c.SignatureMethod {
 	case HMACSHA1:
 		key := encode(c.Credentials.Secret, false)
@@ -375,16 +424,15 @@ func (c *Client) oauthParams(r *request) (map[string]string, error) {
 		writeBaseString(h, r.method, r.u, r.form, oauthParams)
 		signature = base64.StdEncoding.EncodeToString(h.Sum(key[:0]))
 	case RSASHA1:
-		if c.PrivateKey == nil {
-			return nil, errors.New("oauth: private key not set")
-		}
-		h := sha1.New()
-		writeBaseString(h, r.method, r.u, r.form, oauthParams)
-		rawSignature, err := rsa.SignPKCS1v15(rand.Reader, c.PrivateKey, crypto.SHA1, h.Sum(nil))
+		signature, err = rsaSignAndEncode(c.PrivateKey, crypto.SHA1, r, oauthParams)
 		if err != nil {
 			return nil, err
 		}
-		signature = base64.StdEncoding.EncodeToString(rawSignature)
+	case RSASHA256:
+		signature, err = rsaSignAndEncode(c.PrivateKey, crypto.SHA256, r, oauthParams)
+		if err != nil {
+			return nil, err
+		}
 	case PLAINTEXT:
 		rawSignature := encode(c.Credentials.Secret, false)
 		rawSignature = append(rawSignature, '&')
@@ -395,9 +443,30 @@ func (c *Client) oauthParams(r *request) (map[string]string, error) {
 	default:
 		return nil, errors.New("oauth: unknown signature method")
 	}
-
 	oauthParams["oauth_signature"] = signature
+
 	return oauthParams, nil
+}
+
+func rsaSignAndEncode(key *rsa.PrivateKey, hf crypto.Hash, r *request, params map[string]string) (string, error) {
+	if key == nil {
+		return "", errors.New("oauth: private key not set")
+	}
+	var h hash.Hash
+	switch hf {
+	case crypto.SHA1:
+		h = sha1.New()
+	case crypto.SHA256:
+		h = sha256.New()
+	default:
+		return "", errors.New("oauth: unknown signature method")
+	}
+	writeBaseString(h, r.method, r.u, r.form, params)
+	d, err := rsa.SignPKCS1v15(rand.Reader, key, hf, h.Sum(nil))
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(d), nil
 }
 
 // SignForm adds an OAuth signature to form. The urlStr argument must not
@@ -446,6 +515,7 @@ var oauthKeys = []string{
 	"oauth_callback",
 	"oauth_verifier",
 	"oauth_session_handle",
+	"oauth_body_hash",
 }
 
 func (c *Client) authorizationHeader(r *request) (string, error) {
@@ -458,7 +528,7 @@ func (c *Client) authorizationHeader(r *request) (string, error) {
 	for _, k := range oauthKeys {
 		if v, ok := p[k]; ok {
 			if h == nil {
-				h = []byte(`OAuth `)
+				h = []byte("OAuth ")
 			} else {
 				h = append(h, ", "...)
 			}
@@ -486,13 +556,22 @@ func (c *Client) AuthorizationHeader(credentials *Credentials, method string, u 
 //
 // See http://tools.ietf.org/html/rfc5849#section-3.5.1 for information about
 // transmitting OAuth parameters in an HTTP request header.
-func (c *Client) SetAuthorizationHeader(header http.Header, credentials *Credentials, method string, u *url.URL, form url.Values) error {
-	v, err := c.authorizationHeader(&request{credentials: credentials, method: method, u: u, form: form})
+func (c *Client) SetAuthorizationHeader(h http.Header, credentials *Credentials, method string, u *url.URL, q url.Values) error {
+	return c.setHTTPHeader(h, &request{credentials: credentials, method: method, u: u, form: q})
+}
+
+// SetAuthorizationHeaderWithBody does the same job than SetAuthorizationHeader and also manages the body hash.
+func (c *Client) SetAuthorizationHeaderWithBody(h http.Header, credentials *Credentials, method string, u *url.URL, q url.Values, body []byte) error {
+	return c.setHTTPHeader(h, &request{credentials: credentials, method: method, u: u, form: q, body: body})
+}
+
+func (c *Client) setHTTPHeader(h http.Header, req *request) (err error) {
+	v, err := c.authorizationHeader(req)
 	if err != nil {
-		return err
+		return
 	}
-	header.Set("Authorization", v)
-	return nil
+	h.Set("Authorization", v)
+	return
 }
 
 func (c *Client) do(ctx context.Context, urlStr string, r *request) (*http.Response, error) {
@@ -579,29 +658,27 @@ func (c *Client) requestCredentials(ctx context.Context, u string, r *request) (
 		return nil, nil, err
 	}
 	p, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if err != nil {
-		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: p, msg: err.Error()}
+		return nil, nil, newRequestCredentialsError(err.Error(), resp, p)
 	}
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
-		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: p, msg: fmt.Sprintf("OAuth server status %d, %s", resp.StatusCode, string(p))}
+		msg := fmt.Sprintf("OAuth server status %d, %s", resp.StatusCode, p)
+		return nil, nil, newRequestCredentialsError(msg, resp, p)
 	}
 	m, err := url.ParseQuery(string(p))
 	if err != nil {
-		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: p, msg: err.Error()}
+		return nil, nil, newRequestCredentialsError(err.Error(), resp, p)
 	}
 	tokens := m["oauth_token"]
 	if len(tokens) == 0 || tokens[0] == "" {
-		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: p, msg: "oauth: token missing from server result"}
+		return nil, nil, newRequestCredentialsError("oauth: token missing from server result", resp, p)
 	}
 	secrets := m["oauth_token_secret"]
 	if len(secrets) == 0 { // allow "" as a valid secret.
-		return nil, nil, RequestCredentialsError{StatusCode: resp.StatusCode, Header: resp.Header,
-			Body: p, msg: "oauth: secret missing from server result"}
+		return nil, nil, newRequestCredentialsError("oauth: secret missing from server result", resp, p)
 	}
 	return &Credentials{Token: tokens[0], Secret: secrets[0]}, m, nil
 }
@@ -621,8 +698,8 @@ func (c *Client) RequestTemporaryCredentialsContext(ctx context.Context, callbac
 	return credentials, err
 }
 
-// RequestToken requests token credentials from the server. See
-// http://tools.ietf.org/html/rfc5849#section-2.3 for information about token
+// RequestToken requests token credentials from the server.
+// See http://tools.ietf.org/html/rfc5849#section-2.3 for information about token
 // credentials.
 func (c *Client) RequestToken(client *http.Client, temporaryCredentials *Credentials, verifier string) (*Credentials, url.Values, error) {
 	ctx := context.WithValue(context.Background(), HTTPClient, client)
@@ -665,8 +742,8 @@ func (c *Client) RequestTokenXAuthContext(ctx context.Context, temporaryCredenti
 		&request{credentials: temporaryCredentials, method: c.TokenCredentailsMethod, form: form})
 }
 
-// AuthorizationURL returns the URL for resource owner authorization. See
-// http://tools.ietf.org/html/rfc5849#section-2.2 for information about
+// AuthorizationURL returns the URL for resource owner authorization.
+// See http://tools.ietf.org/html/rfc5849#section-2.2 for information about
 // resource owner authorization.
 func (c *Client) AuthorizationURL(temporaryCredentials *Credentials, additionalParams url.Values) string {
 	params := make(url.Values)
@@ -690,17 +767,4 @@ func contextClient(ctx context.Context) *http.Client {
 		}
 	}
 	return http.DefaultClient
-}
-
-// RequestCredentialsError is an error containing
-// response information when requesting credentials.
-type RequestCredentialsError struct {
-	StatusCode int
-	Header     http.Header
-	Body       []byte
-	msg        string
-}
-
-func (e RequestCredentialsError) Error() string {
-	return e.msg
 }
