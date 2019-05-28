@@ -293,7 +293,7 @@ func TestRequestToken(t *testing.T) {
 	defer ts.Close()
 
 	for _, method = range []string{"", "GET", "POST"} {
-		c := Client{TokenRequestURI: ts.URL, TokenCredentialsMethod: method}
+		c := Client{TokenRequestURI: ts.URL, TokenCredentailsMethod: method}
 		cred, _, err := c.RequestToken(http.DefaultClient, &Credentials{}, "verifier")
 		if err != nil {
 			t.Errorf("returned error %v", err)
