@@ -15,7 +15,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -23,6 +22,8 @@ import (
 	"text/template"
 
 	"github.com/gomodule/oauth1/oauth"
+
+	"golang.org/x/net/context"
 
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
