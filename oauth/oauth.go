@@ -77,6 +77,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -252,15 +253,18 @@ func (sm SignatureMethod) String() string {
 		return "HMAC-SHA1"
 	case PLAINTEXT:
 		return "PLAINTEXT"
+	case HMACSHA256:
+		return "HMAC-SHA256"
 	default:
 		return "unknown"
 	}
 }
 
 const (
-	HMACSHA1  SignatureMethod = iota // HMAC-SHA1
-	RSASHA1                          // RSA-SHA1
-	PLAINTEXT                        // Plain text
+	HMACSHA1   SignatureMethod = iota // HMAC-SHA1
+	RSASHA1                           // RSA-SHA1
+	PLAINTEXT                         // Plain text
+	HMACSHA256                        // HMAC-256
 )
 
 // Credentials represents client, temporary and token credentials.
@@ -372,6 +376,15 @@ func (c *Client) oauthParams(r *request) (map[string]string, error) {
 			key = append(key, encode(r.credentials.Secret, false)...)
 		}
 		h := hmac.New(sha1.New, key)
+		writeBaseString(h, r.method, r.u, r.form, oauthParams)
+		signature = base64.StdEncoding.EncodeToString(h.Sum(key[:0]))
+	case HMACSHA256:
+		key := encode(c.Credentials.Secret, false)
+		key = append(key, '&')
+		if r.credentials != nil {
+			key = append(key, encode(r.credentials.Secret, false)...)
+		}
+		h := hmac.New(sha256.New, key)
 		writeBaseString(h, r.method, r.u, r.form, oauthParams)
 		signature = base64.StdEncoding.EncodeToString(h.Sum(key[:0]))
 	case RSASHA1:
