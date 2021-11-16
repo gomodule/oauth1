@@ -183,6 +183,19 @@ var oauthTests = []struct {
 		header:            `OAuth oauth_consumer_key="key", oauth_nonce="a7da4d14579d61886be9d596d1a6a720", oauth_signature="jPun728OkfFo7BjZiaQ5UBVChwk6tf0uKNFDmNKVb%2Bd6aWYEzsDVkqqjcgTrCRNabK8ubAnhyprafk0mk3zEJe%2BxGb9GKauqwUJ6ZZoGJNYYZg3BZUQvdxSKFs1M4MUMv3fxntmD%2BoyE8jPbrVM2zD1G1AAPm79sX%2B8XE25tBE8%3D", oauth_signature_method="RSA-SHA1", oauth_timestamp="1420240290", oauth_token="accesskey", oauth_version="1.0"`,
 	},
 	{
+		// RSA-SHA256 signature method
+		signatureMethod:   RSASHA256,
+		method:            "GET",
+		url:               parseURL("http://term.ie/oauth/example/echo_api.php"),
+		form:              url.Values{"method": {"foo%20bar"}, "bar": {"baz"}},
+		nonce:             "a7da4d14579d61886be9d596d1a6a720",
+		timestamp:         "1420240290",
+		clientCredentials: Credentials{Token: "key"},
+		credentials:       Credentials{Token: "accesskey"},
+		base:              `GET&http%3A%2F%2Fterm.ie%2Foauth%2Fexample%2Fecho_api.php&bar%3Dbaz%26method%3Dfoo%252520bar%26oauth_consumer_key%3Dkey%26oauth_nonce%3Da7da4d14579d61886be9d596d1a6a720%26oauth_signature_method%3DRSA-SHA256%26oauth_timestamp%3D1420240290%26oauth_token%3Daccesskey%26oauth_version%3D1.0`,
+		header:            `OAuth oauth_consumer_key="key", oauth_nonce="a7da4d14579d61886be9d596d1a6a720", oauth_signature="i1hxcRO6QJcZE6BLifFKF2rfNNpNPIplUtGE74%2BUFgVE%2B9nGnHXmKC1xro8oK03lHM5pGLp9zlcQYpDmLUCMZ2wVLmND1dCQ033UzUZvvxslK7c5gp53QvL5bduoQc2hRoAJTpFd%2FpN9o%2FdhwNCxNY%2BC1GD%2FWeaPE9Hg5EuP03Y%3D", oauth_signature_method="RSA-SHA256", oauth_timestamp="1420240290", oauth_token="accesskey", oauth_version="1.0"`,
+	},
+	{
 		// HMACSHA1 signature method
 		signatureMethod:   HMACSHA1,
 		method:            "GET",

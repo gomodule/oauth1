@@ -49,7 +49,7 @@
 // an authenticated request by encoding the modified form to the query string
 // or request body.
 //
-// The SetAuthorizationHeader method adds an OAuth siganture to a request
+// The SetAuthorizationHeader method adds an OAuth signature to a request
 // header. The SetAuthorizationHeader method is the only way to correctly sign
 // a request if the application sets the URL Opaque field when making a
 // request.
@@ -250,6 +250,8 @@ func (sm SignatureMethod) String() string {
 	switch sm {
 	case RSASHA1:
 		return "RSA-SHA1"
+	case RSASHA256:
+		return "RSA-SHA256"
 	case HMACSHA1:
 		return "HMAC-SHA1"
 	case HMACSHA256:
@@ -266,6 +268,7 @@ const (
 	RSASHA1                           // RSA-SHA1
 	PLAINTEXT                         // Plain text
 	HMACSHA256                        // HMAC-256
+	RSASHA256                         // RSA-SHA256
 )
 
 // Credentials represents client, temporary and token credentials.
@@ -315,8 +318,8 @@ type Client struct {
 	// SignatureMethod specifies the method for signing a request.
 	SignatureMethod SignatureMethod
 
-	// PrivateKey is the private key to use for RSA-SHA1 signatures. This field
-	// must be set for RSA-SHA1 signatures and ignored for other signature
+	// PrivateKey is the private key to use for RSA-SHA* signatures. This field
+	// must be set for RSA-SHA* signatures and ignored for other signature
 	// methods.
 	PrivateKey *rsa.PrivateKey
 }
@@ -367,37 +370,39 @@ func (c *Client) oauthParams(r *request) (map[string]string, error) {
 
 	testHook(oauthParams)
 
-	var signature string
-
+	var (
+		signature string
+		err       error
+	)
 	switch c.SignatureMethod {
 	case HMACSHA1:
 		signature = c.hmacSignature(r, sha1.New, oauthParams)
 	case HMACSHA256:
 		signature = c.hmacSignature(r, sha256.New, oauthParams)
 	case RSASHA1:
-		if c.PrivateKey == nil {
-			return nil, errors.New("oauth: private key not set")
-		}
-		h := sha1.New()
-		writeBaseString(h, r.method, r.u, r.form, oauthParams)
-		rawSignature, err := rsa.SignPKCS1v15(rand.Reader, c.PrivateKey, crypto.SHA1, h.Sum(nil))
-		if err != nil {
-			return nil, err
-		}
-		signature = base64.StdEncoding.EncodeToString(rawSignature)
+		signature, err = c.rsaSignature(r, crypto.SHA1, oauthParams)
+	case RSASHA256:
+		signature, err = c.rsaSignature(r, crypto.SHA256, oauthParams)
 	case PLAINTEXT:
-		rawSignature := encode(c.Credentials.Secret, false)
-		rawSignature = append(rawSignature, '&')
-		if r.credentials != nil {
-			rawSignature = append(rawSignature, encode(r.credentials.Secret, false)...)
-		}
-		signature = string(rawSignature)
+		signature = c.plainTextSignature(r)
 	default:
-		return nil, errors.New("oauth: unknown signature method")
+		err = errors.New("oauth: unknown signature method")
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	oauthParams["oauth_signature"] = signature
 	return oauthParams, nil
+}
+
+func (c *Client) plainTextSignature(r *request) string {
+	signature := encode(c.Credentials.Secret, false)
+	signature = append(signature, '&')
+	if r.credentials != nil {
+		signature = append(signature, encode(r.credentials.Secret, false)...)
+	}
+	return string(signature)
 }
 
 func (c *Client) hmacSignature(r *request, h func() hash.Hash, oauthParams map[string]string) string {
@@ -409,6 +414,19 @@ func (c *Client) hmacSignature(r *request, h func() hash.Hash, oauthParams map[s
 	hm := hmac.New(h, key)
 	writeBaseString(hm, r.method, r.u, r.form, oauthParams)
 	return base64.StdEncoding.EncodeToString(hm.Sum(key[:0]))
+}
+
+func (c *Client) rsaSignature(r *request, h crypto.Hash, oauthParams map[string]string) (string, error) {
+	if c.PrivateKey == nil {
+		return "", errors.New("oauth: private key not set")
+	}
+	w := h.New()
+	writeBaseString(w, r.method, r.u, r.form, oauthParams)
+	rawSignature, err := rsa.SignPKCS1v15(rand.Reader, c.PrivateKey, h, w.Sum(nil))
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(rawSignature), nil
 }
 
 // SignForm adds an OAuth signature to form. The urlStr argument must not

@@ -4,8 +4,13 @@
 [![Build Status](https://travis-ci.org/gomodule/oauth1.svg?branch=master)](https://travis-ci.org/gomodule/oauth1)
 
 OAuth1 is a [Go](https://golang.org/) client for the OAuth 1.0, OAuth 1.0a and
-[RFC 5849](https://tools.ietf.org/html/rfc5849) Protocols. The package supports
-HMAC-SHA1, RSA-SHA1 and PLAINTEXT signatures.
+[RFC 5849](https://tools.ietf.org/html/rfc5849) Protocols. The package supports the following signatures:
+
+* HMAC-SHA1
+* HMAC-SHA256
+* PLAINTEXT
+* RSA-SHA1
+* RSA-SHA256
 
 ## Installation
 
