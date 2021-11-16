@@ -182,6 +182,32 @@ var oauthTests = []struct {
 		base:              `GET&http%3A%2F%2Fterm.ie%2Foauth%2Fexample%2Fecho_api.php&bar%3Dbaz%26method%3Dfoo%252520bar%26oauth_consumer_key%3Dkey%26oauth_nonce%3Da7da4d14579d61886be9d596d1a6a720%26oauth_signature_method%3DRSA-SHA1%26oauth_timestamp%3D1420240290%26oauth_token%3Daccesskey%26oauth_version%3D1.0`,
 		header:            `OAuth oauth_consumer_key="key", oauth_nonce="a7da4d14579d61886be9d596d1a6a720", oauth_signature="jPun728OkfFo7BjZiaQ5UBVChwk6tf0uKNFDmNKVb%2Bd6aWYEzsDVkqqjcgTrCRNabK8ubAnhyprafk0mk3zEJe%2BxGb9GKauqwUJ6ZZoGJNYYZg3BZUQvdxSKFs1M4MUMv3fxntmD%2BoyE8jPbrVM2zD1G1AAPm79sX%2B8XE25tBE8%3D", oauth_signature_method="RSA-SHA1", oauth_timestamp="1420240290", oauth_token="accesskey", oauth_version="1.0"`,
 	},
+	{
+		// HMACSHA1 signature method
+		signatureMethod:   HMACSHA1,
+		method:            "GET",
+		url:               parseURL("https://example.com/1/"),
+		form:              url.Values{"page": {"10"}},
+		nonce:             "8067e8abc6bdca2006818132445c8f4c",
+		timestamp:         "1355795903",
+		clientCredentials: Credentials{"kMViZR2MHk2mM7hUNVw9A", "56Fgl58yOfqXOhHXX0ybvOmSnPQFvR2miYmm30A"},
+		credentials:       Credentials{"10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", "yF75mvq4LZMHj9O0DXwoC3ZxUnN1ptvieThYuOAYM"},
+		base:              `GET&https%3A%2F%2Fexample.com%2F1%2F&oauth_consumer_key%3DkMViZR2MHk2mM7hUNVw9A%26oauth_nonce%3D8067e8abc6bdca2006818132445c8f4c%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1355795903%26oauth_token%3D10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU%26oauth_version%3D1.0%26page%3D10`,
+		header:            `OAuth oauth_consumer_key="kMViZR2MHk2mM7hUNVw9A", oauth_nonce="8067e8abc6bdca2006818132445c8f4c", oauth_signature="bNV77q9f89pz4PVk5Vsc8T%2Fi1Hk%3D", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1355795903", oauth_token="10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", oauth_version="1.0"`,
+	},
+	{
+		// HMACSHA256 signature method
+		signatureMethod:   HMACSHA256,
+		method:            "GET",
+		url:               parseURL("https://example.com/1/"),
+		form:              url.Values{"page": {"10"}},
+		nonce:             "8067e8abc6bdca2006818132445c8f4c",
+		timestamp:         "1355795903",
+		clientCredentials: Credentials{"kMViZR2MHk2mM7hUNVw9A", "56Fgl58yOfqXOhHXX0ybvOmSnPQFvR2miYmm30A"},
+		credentials:       Credentials{"10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", "yF75mvq4LZMHj9O0DXwoC3ZxUnN1ptvieThYuOAYM"},
+		base:              `GET&https%3A%2F%2Fexample.com%2F1%2F&oauth_consumer_key%3DkMViZR2MHk2mM7hUNVw9A%26oauth_nonce%3D8067e8abc6bdca2006818132445c8f4c%26oauth_signature_method%3DHMAC-SHA256%26oauth_timestamp%3D1355795903%26oauth_token%3D10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU%26oauth_version%3D1.0%26page%3D10`,
+		header:            `OAuth oauth_consumer_key="kMViZR2MHk2mM7hUNVw9A", oauth_nonce="8067e8abc6bdca2006818132445c8f4c", oauth_signature="GFfMidiFmlO%2BsI3tkXVTIqxOwM7EhnMwpB4ULsnPLlQ%3D", oauth_signature_method="HMAC-SHA256", oauth_timestamp="1355795903", oauth_token="10212-JJ3Zc1A49qSMgdcAO2GMOpW9l7A348ESmhjmOBOU", oauth_version="1.0"`,
+	},
 }
 
 func TestBaseString(t *testing.T) {

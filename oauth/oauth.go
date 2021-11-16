@@ -77,10 +77,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -250,6 +252,8 @@ func (sm SignatureMethod) String() string {
 		return "RSA-SHA1"
 	case HMACSHA1:
 		return "HMAC-SHA1"
+	case HMACSHA256:
+		return "HMAC-SHA256"
 	case PLAINTEXT:
 		return "PLAINTEXT"
 	default:
@@ -258,9 +262,10 @@ func (sm SignatureMethod) String() string {
 }
 
 const (
-	HMACSHA1  SignatureMethod = iota // HMAC-SHA1
-	RSASHA1                          // RSA-SHA1
-	PLAINTEXT                        // Plain text
+	HMACSHA1   SignatureMethod = iota // HMAC-SHA1
+	RSASHA1                           // RSA-SHA1
+	PLAINTEXT                         // Plain text
+	HMACSHA256                        // HMAC-256
 )
 
 // Credentials represents client, temporary and token credentials.
@@ -366,14 +371,9 @@ func (c *Client) oauthParams(r *request) (map[string]string, error) {
 
 	switch c.SignatureMethod {
 	case HMACSHA1:
-		key := encode(c.Credentials.Secret, false)
-		key = append(key, '&')
-		if r.credentials != nil {
-			key = append(key, encode(r.credentials.Secret, false)...)
-		}
-		h := hmac.New(sha1.New, key)
-		writeBaseString(h, r.method, r.u, r.form, oauthParams)
-		signature = base64.StdEncoding.EncodeToString(h.Sum(key[:0]))
+		signature = c.hmacSignature(r, sha1.New, oauthParams)
+	case HMACSHA256:
+		signature = c.hmacSignature(r, sha256.New, oauthParams)
 	case RSASHA1:
 		if c.PrivateKey == nil {
 			return nil, errors.New("oauth: private key not set")
@@ -398,6 +398,17 @@ func (c *Client) oauthParams(r *request) (map[string]string, error) {
 
 	oauthParams["oauth_signature"] = signature
 	return oauthParams, nil
+}
+
+func (c *Client) hmacSignature(r *request, h func() hash.Hash, oauthParams map[string]string) string {
+	key := encode(c.Credentials.Secret, false)
+	key = append(key, '&')
+	if r.credentials != nil {
+		key = append(key, encode(r.credentials.Secret, false)...)
+	}
+	hm := hmac.New(h, key)
+	writeBaseString(hm, r.method, r.u, r.form, oauthParams)
+	return base64.StdEncoding.EncodeToString(hm.Sum(key[:0]))
 }
 
 // SignForm adds an OAuth signature to form. The urlStr argument must not
