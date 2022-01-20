@@ -50,6 +50,14 @@ var writeBaseStringTests = []writeBaseStringTest{
 		},
 		output: "POST&https%3A%2F%2Fwww.interactivebrokers.com%2Ftradingapi%2Fv1%2Foauth%2Frequest_token",
 	},
+	writeBaseStringTest{
+		input: writeBaseStringTestInput{
+			url:    "https://www.interactivebrokers.com",
+			path:   "/tradingapi/v1/oauth/request_token",
+			method: "POST",
+		},
+		output: "POST&https%3A%2F%2Fwww.interactivebrokers.com%2Ftradingapi%2Fv1%2Foauth%2Frequest_token",
+	},
 }
 
 func TestWriteBaseSting(t *testing.T) {
