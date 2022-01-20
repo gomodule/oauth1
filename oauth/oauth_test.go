@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,56 @@ import (
 	"strings"
 	"testing"
 )
+
+type writeBaseStringTestInput struct {
+	url    string
+	path   string
+	method string
+}
+
+type writeBaseStringTest struct {
+	input  writeBaseStringTestInput
+	output string
+}
+
+var writeBaseStringTests = []writeBaseStringTest{
+	writeBaseStringTest{
+		input: writeBaseStringTestInput{
+			url:    "https://www.interactivebrokers.com",
+			path:   "tradingapi/v1/oauth/request_token",
+			method: "POST",
+		},
+		output: "POST&https%3A%2F%2Fwww.interactivebrokers.com%2Ftradingapi%2Fv1%2Foauth%2Frequest_token",
+	},
+}
+
+func TestWriteBaseSting(t *testing.T) {
+	var (
+		u   *url.URL
+		err error
+	)
+
+	for i, tt := range writeBaseStringTests {
+		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
+			s := ""
+			buf := bytes.NewBufferString(s)
+
+			u, err = url.Parse(tt.input.url)
+			if err != nil {
+				t.Fatalf("err parsing url %s; %v", tt.input.url, err)
+			}
+
+			u.Path = tt.input.path
+			t.Logf("url string %s", u.String())
+
+			writeBaseString(buf, tt.input.method, u, url.Values{}, map[string]string{})
+
+			if buf.String() != tt.output {
+				t.Errorf("expected %s, received %s", tt.output, buf.String())
+			}
+		})
+	}
+}
 
 func parseURL(urlStr string) *url.URL {
 	u, err := url.Parse(urlStr)
