@@ -337,7 +337,7 @@ type request struct {
 var testHook = func(map[string]string) {}
 
 // oauthParams returns the OAuth request parameters for the given credentials,
-// method, URL and application params. See
+// method, URL and application parameters. See
 // http://tools.ietf.org/html/rfc5849#section-3.4 for more information about
 // signatures.
 func (c *Client) oauthParams(r *request) (map[string]string, error) {
@@ -454,7 +454,9 @@ func (c *Client) SignForm(credentials *Credentials, method, urlStr string, form 
 	return nil
 }
 
-// SignParam is deprecated. Use SignForm instead.
+// SignParam adds an OAuth signature to a form.
+//
+// Deprecated: Use SignForm instead.
 func (c *Client) SignParam(credentials *Credentials, method, urlStr string, params url.Values) {
 	u, _ := url.Parse(urlStr)
 	u.RawQuery = ""
@@ -503,7 +505,7 @@ func (c *Client) authorizationHeader(r *request) (string, error) {
 // AuthorizationHeader returns the HTTP authorization header value for given
 // method, URL and parameters.
 //
-// AuthorizationHeader is deprecated. Use SetAuthorizationHeader instead.
+// Deprecated: Use SetAuthorizationHeader instead.
 func (c *Client) AuthorizationHeader(credentials *Credentials, method string, u *url.URL, params url.Values) string {
 	// Signing a request can return an error. This method is deprecated because
 	// this method does not return an error.
