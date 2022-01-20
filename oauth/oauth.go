@@ -198,8 +198,10 @@ func writeBaseString(w io.Writer, method string, u *url.URL, form url.Values, oa
 	w.Write(encode(scheme, false))
 	w.Write(encode("://", false))
 	w.Write(encode(host, false))
+	if len(path) > 0 && path[:1] != "/" {
+		w.Write(encode("/", false))
+	}
 	w.Write(encode(path, false))
-	w.Write([]byte{'&'})
 
 	// Create sorted slice of encoded parameters. Parameter keys and values are
 	// double encoded in a single step. This is safe because double encoding
@@ -217,6 +219,10 @@ func writeBaseString(w io.Writer, method string, u *url.URL, form url.Values, oa
 	encodedAmp := encode("&", false)
 	encodedEqual := encode("=", false)
 	sep := false
+
+	if len(p) > 0 {
+		w.Write([]byte{'&'})
+	}
 	for _, kv := range p {
 		if sep {
 			w.Write(encodedAmp)
